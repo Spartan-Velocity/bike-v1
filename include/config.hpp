@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include "HardwareSerial.h"
 
 namespace canConfig {
 
@@ -32,3 +33,11 @@ constexpr int PUMP_PWM_FREQUENCY = 1000;  // Max allowed frequency is 1100Hz
 constexpr float PUMP_PWM_DUTYCYCLE = 14;  // Min allowed duty cycle is 13%
 
 }  // namespace pumpConfig
+
+namespace displayConfig {
+
+inline auto& NEXTION = Serial4;
+constexpr uint32_t DISPLAY_BAUD = 9600;
+constexpr uint16_t DISPLAY_TIMEOUT = 5000;
+
+}  // namespace displayConfig

@@ -1,0 +1,14 @@
+Startup Page
+    - set loaded.val to 1 to load into the data Page
+Data Page
+    - set data.charge.val to charge in volts
+        - set MAXCHARGE.val and MINCHARGE.val to adjust the scale of the charge
+    - set data.diagVal[0-4].val to set diag values
+        - set data.diagLabel[0-4].txt to adjust diag value labels
+    - set data.faulting&[0-15] to set specific faults
+        - if faulting!=0 faults display active
+    - set data.speed.val to set the speed display & speedomoter
+        - seet MAXSPEED.val to adjust the high end of the speedomoter
+Debug Page  
+    - set fault0[0-7].txt to set fault labels [0-7]
+    - set fault1[0-7].txt to set fault labels [8-15]
