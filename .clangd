@@ -1,7 +1,0 @@
-CompileFlags:
-  CompilationDatabase: .pio/build
-  Add: 
-    - -ferror-limit=0
-
-Diagnostics:
-  Suppress: ["invalid-constexpr", "clang-diagnostic-invalid-constexpr", "ovl_diff_return_type"]
