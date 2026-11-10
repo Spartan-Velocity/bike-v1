@@ -3,7 +3,7 @@
 
 #include "config.hpp"
 
-FlexCAN_T4<CAN1, RX_SIZE_256, TX_SIZE_16> canController::getBus() {
+FlexCAN_T4<CAN1, RX_SIZE_256, TX_SIZE_16>& canController::getBus() {
   static FlexCAN_T4<CAN1, RX_SIZE_256, TX_SIZE_16> bus;
   return bus;
 };
