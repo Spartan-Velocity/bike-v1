@@ -43,6 +43,13 @@ void requestMessages(uint32_t id, _MB_ptr handler, bool interupt) {
   usedMailboxes++;
 }
 
+void requestMessage(uint32_t id, _MB_ptr handler) {
+  canBus.setMBFilter(MB1, id);
+  canBus.onReceive(MB1, handler);
+
+  usedMailboxes++;
+}
+
 void write(const Message& msg) {
   canBus.write(msg);
 }
@@ -51,7 +58,6 @@ void write(FLEXCAN_MAILBOX mailbox, uint32_t id, const uint8_t* data, uint8_t le
   CAN_message_t m;
   m.id = id;
   m.len = len;
-  m.flags.extended = false;
   memcpy(m.buf, data, len);
   canBus.write(mailbox, m);
 }
@@ -63,6 +69,10 @@ void init() {
   canBus.setMBFilter(REJECT_ALL);  // disable all mailboxes
 
   canBus.setMB(MB0, TX);  // set mailbox 0 to transmit default
+  usedMailboxes++;
+
+  canBus.setMB(MB1, RX); // set mailbox 1 to receive default
+  canBus.enableMBInterrupt(MB1);
   usedMailboxes++;
 
   // enable fifo mailbox for message sniffing
