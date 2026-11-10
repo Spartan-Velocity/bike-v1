@@ -28,9 +28,6 @@ void sniffMessage(const Message& msg) {
 }  // namespace
 
 void requestMessages(uint32_t id, _MB_ptr handler, bool interupt) {
-  if (usedMailboxes >= canConfig::CAN_MAX_MB - 1) {
-    return;
-  }
   auto mailbox = FLEXCAN_MAILBOX(usedMailboxes);
 
   canBus.setMB(mailbox, RX);
@@ -50,11 +47,23 @@ void requestMessage(uint32_t id, _MB_ptr handler) {
   usedMailboxes++;
 }
 
-void write(const Message& msg) {
-  canBus.write(msg);
+FLEXCAN_MAILBOX requestWriteMailbox() {
+  return FLEXCAN_MAILBOX(usedMailboxes++);
 }
 
-void write(FLEXCAN_MAILBOX mailbox, uint32_t id, const uint8_t* data, uint8_t len) {
+// void write(const Message& msg) {
+//   canBus.write(msg);
+// }
+
+void write(uint32_t id, const MessageData* data, uint8_t len) {
+  CAN_message_t m;
+  m.id = id;
+  m.len = len;
+  memcpy(m.buf, data, len);
+  canBus.write(m);
+}
+
+void write(FLEXCAN_MAILBOX mailbox, uint32_t id, const MessageData* data, uint8_t len) {
   CAN_message_t m;
   m.id = id;
   m.len = len;

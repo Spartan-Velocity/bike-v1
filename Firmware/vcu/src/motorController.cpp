@@ -18,17 +18,14 @@ volatile uint16_t expectedAddr;
 
 void init() {
   for (const auto& param : motorConfig::PARAMS) {
-    CAN_message_t msg;
-    msg.id = motorConfig::MSGID_TX_PARAM;
-    msg.len = 8;
-    msg.buf[0] = param[0] & 0xFF;  // parameter address, little-endian
-    msg.buf[1] = param[0] >> 8;
-    msg.buf[2] = 1;                // 1 = write, 0 = read
-    msg.buf[3] = 0;                // reserved
-    msg.buf[4] = param[1] & 0xFF;  // data, little-endian
-    msg.buf[5] = param[1] >> 8;
-    msg.buf[6] = 0;  // reserved
-    msg.buf[7] = 0;
+    canController::MessageData data = CAN_DATA(param[0] & 0xFF,  // parameter address, little-endian
+                                               param[0] >> 8,
+                                               1,                // 1 = write, 0 = read
+                                               0,                // reserved
+                                               param[1] & 0xFF,  // data, little-endian
+                                               param[1] >> 8,
+                                               0,  // reserved
+                                               0);
 
     paramRecieved = false;
     paramOk = false;
@@ -42,7 +39,7 @@ void init() {
       paramRecieved = true;
     });
 
-    canController::write(msg);
+    canController::write(motorConfig::MSGID_TX_PARAM, &data, 8);
 
     auto timeout = elapsedMillis();
     while (!paramRecieved && timeout < motorConfig::PARAM_RX_TIMEOUT) {

@@ -29,7 +29,7 @@ constexpr uint16_t PARAMS[][2] = {
 
 constexpr uint16_t PARAM_RX_TIMEOUT = 1000;
 
-constexpr uint16_t COMMAND_MSG_TIMEOUT = 10;
+constexpr uint16_t COMMAND_MSG_RATE = 2;
 
 }  // namespace motorConfig
 
