@@ -3,10 +3,14 @@
 #include <FlexCAN_T4.h>
 #include <cstdint>
 
+// clang-format off
+
 #define U8(x) static_cast<uint8_t>(x)
 
 #define CAN_DATA(b0, b1, b2, b3, b4, b5, b6, b7) \
   {U8(b0), U8(b1), U8(b2), U8(b3), U8(b4), U8(b5), U8(b6), U8(b7)}
+
+// clang-format on
 
 using Message = CAN_message_t;
 using MessageData = uint8_t[8];
