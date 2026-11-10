@@ -13,20 +13,21 @@ using MessageData = uint8_t[8];
 
 class canController {
  public:
-  static void requestMessages(uint32_t id, _MB_ptr handler, bool interupt);
-  static void requestMessage(uint32_t id, _MB_ptr handler);
+  static void requestMessages(uint32_t id, _MB_ptr handler);
+  static void requestMessageTemp(uint32_t id, _MB_ptr handler);
 
   static FLEXCAN_MAILBOX requestWriteMailbox();
 
   // void write(const Message& msg);
-  static void write(uint32_t id, const MessageData* data, uint8_t len);
-  static void write(FLEXCAN_MAILBOX mailbox, uint32_t id, const MessageData* data, uint8_t len);
+  static void write(uint32_t id, const MessageData* data);
+  static void write(FLEXCAN_MAILBOX mailbox, uint32_t id, const MessageData* data);
 
   static void init();
   static void poll();
 
  private:
   inline static uint8_t usedMailboxes{};
+  inline static FLEXCAN_MAILBOX tempMailbox{};
 
   static void sniffMessage(const Message& msg);
 

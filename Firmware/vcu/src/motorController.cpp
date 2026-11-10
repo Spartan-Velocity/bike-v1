@@ -7,6 +7,14 @@
 #include "elapsedMillis.h"
 
 void motorController::init() {
+  canController::requestMessageTemp(motorConfig::MSGID_RX_PARAM, [](const CAN_message_t& msg) {
+    if ((msg.buf[0] | (msg.buf[1] << 8)) != expectedAddr) {
+      return;
+    }
+    paramOk = (msg.buf[2] == 1);
+    paramRecieved = true;
+  });
+
   for (const auto& param : motorConfig::PARAMS) {
     MessageData data = CAN_DATA(param[0] & 0xFF,  // parameter address, little-endian
                                 param[0] >> 8,
@@ -21,15 +29,7 @@ void motorController::init() {
     paramOk = false;
     expectedAddr = param[0];
 
-    canController::requestMessage(motorConfig::MSGID_RX_PARAM, [](const CAN_message_t& msg) {
-      if ((msg.buf[0] | (msg.buf[1] << 8)) != expectedAddr) {
-        return;
-      }
-      paramOk = (msg.buf[2] == 1);
-      paramRecieved = true;
-    });
-
-    canController::write(motorConfig::MSGID_TX_PARAM, &data, 8);
+    canController::write(motorConfig::MSGID_TX_PARAM, &data);
 
     auto timeout = elapsedMillis();
     while (!paramRecieved && timeout < motorConfig::PARAM_RX_TIMEOUT) {

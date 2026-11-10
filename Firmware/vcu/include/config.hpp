@@ -11,6 +11,8 @@ constexpr bool canMonitorEnabled = true;
 constexpr uint32_t CAN_BAUD_RATE = 500000;
 constexpr uint8_t CAN_MAX_MB = 64;
 
+constexpr uint8_t FIFO_MAILBOX_COUNT = 8;
+
 }  // namespace canConfig
 
 namespace motorConfig {
