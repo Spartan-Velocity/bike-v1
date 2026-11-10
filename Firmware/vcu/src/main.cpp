@@ -4,11 +4,17 @@
 #include "motorController.hpp"
 #include "usb_serial.h"
 
-void setup() {
+void initSerial() {
   auto timeout = elapsedMillis();
   Serial.begin(115200);
 
-  while (!Serial && timeout < 3000) {};
+  while (!Serial && timeout < 3000) {
+  };
+  Serial.println("Serial initalized");
+}
+
+void setup() {
+  initSerial();
 
   canController::init();
   motorController::init();
