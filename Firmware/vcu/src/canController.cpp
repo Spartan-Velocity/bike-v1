@@ -72,7 +72,6 @@ void canController::init() {
   if (canConfig::canMonitorEnabled) {
     getBus().enableFIFO();
     getBus().setFIFOFilter(ACCEPT_ALL);
-    getBus().onReceive(FIFO, sniffMessage);
     getBus().enableFIFOInterrupt();
 
     usedMailboxes += canConfig::FIFO_MAILBOX_COUNT;
@@ -85,6 +84,8 @@ void canController::init() {
   getBus().setMB(tempMailbox, RX);  // set mailbox 1 to receive default
   getBus().setMBFilter(tempMailbox, REJECT_ALL);
   getBus().enableMBInterrupt(tempMailbox);
+  
+  getBus().events();
 }
 
 void canController::poll() {

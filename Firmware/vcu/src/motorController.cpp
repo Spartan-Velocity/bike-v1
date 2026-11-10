@@ -35,6 +35,7 @@ void motorController::init() {
 
     auto timeout = elapsedMillis();
     while (!paramRecieved && timeout < motorConfig::PARAM_RX_TIMEOUT) {
+      canController::poll();
     }
 
     if (!paramRecieved) {
