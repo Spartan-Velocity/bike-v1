@@ -22,9 +22,11 @@ Checks: >
   -cppcoreguidelines-avoid-magic-numbers,
   -cppcoreguidelines-avoid-non-const-global-variables,
   -cppcoreguidelines-pro-bounds-constant-array-index,
+  -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
   -hicpp-uppercase-literal-suffix,
   -hicpp-avoid-c-arrays,
   -hicpp-signed-bitwise,
+  -hicpp-no-array-decay,
   -modernize-use-trailing-return-type,
   -misc-use-internal-linkage,
   -altera-unroll-loops,
@@ -32,7 +34,3 @@ Checks: >
 WarningsAsErrors: ''
 HeaderFilterRegex: '^(src|include)/.*'
 FormatStyle: file
-
-CheckOptions:
-  - key: readability-function-cognitive-complexity.IgnoreMacros
-    value: true

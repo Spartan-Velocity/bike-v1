@@ -1,0 +1,636 @@
+FlexCAN_T4 — Complete Reference Guide
+Repository: github.com/tonton81/FlexCAN_T4 Author: Antonio Alexander Brewer (tonton81) · License: MIT Platforms: Teensy 3.2/3.5/3.6 (Kinetis) and Teensy 4.0/4.1 (i.MX RT1062)
+
+FlexCAN_T4 is a from-the-ground-up rewrite of the older "IFCT" library for driving the FlexCAN peripherals built into PJRC's Teensy boards. It supports classic CAN 2.0 frames everywhere, and CAN FD (flexible data rate, up to 64-byte payloads) on the Teensy 4's third CAN controller. The library is entirely interrupt/queue driven under the hood, but exposes both a simple polling API and a callback-based API, so it can be used however fits your sketch.
+
+This guide is organized as a practical walkthrough followed by a full API reference, based on the library's README.md and its public header (FlexCAN_T4.h).
+
+Table of Contents
+Supported Hardware
+Installation
+Core Concepts
+Quick Start
+Initialization & Baud Rate
+Pin Selection
+Sending & Receiving Frames
+Mailboxes
+Callbacks & Interrupts
+The Filtering System
+FIFO Mode (CAN 2.0 only)
+CAN FD-Specific Configuration
+Error Handling & Diagnostics
+Loopback, DMA, and Reset
+CAN 2.0 vs CAN FD — Feature Matrix
+Full Enum Reference
+Bonus Module: ISO-TP
+Other Files in the Repo
+Practical Tips & Gotchas
+Complete Example Sketches
+1. Supported Hardware
+Board	Chip macro	CAN buses usable	CAN FD?	Hardware mailboxes (CAN 2.0)
+Teensy 3.1 / 3.2	__MK20DX256__	CAN0	No	16
+Teensy 3.5	__MK64FX512__	CAN0	No	16
+Teensy 3.6	__MK66FX1M0__	CAN0, CAN1	No	16
+Teensy 4.0 / 4.1	__IMXRT1062__	CAN1, CAN2, CAN3	CAN3 only	64
+Notes:
+
+On Teensy 3.x, the CAN1 symbol technically exists in the register map for all chips in that family, but it is only physically wired out on the Teensy 3.6; on 3.2/3.5 it isn't usable even though it compiles.
+On Teensy 4, only CAN3 has a CAN FD-capable controller; CAN1/CAN2 are CAN 2.0-only.
+Teensy LC has no CAN peripheral at all and isn't supported.
+2. Installation
+Download or clone the repository into your Arduino libraries folder (or install via the Arduino/PlatformIO Library Manager, where it's listed as FlexCAN_T4).
+Include it in your sketch:
+#include <FlexCAN_T4.h>
+That single include pulls in the message structs, all the enums, and — depending on which chip macro is defined by your board selection — the correct low-level register header (imxrt_flexcan.h for Teensy 4, kinetis_flexcan.h for Teensy 3.x) plus the .tpp implementation files.
+
+3. Core Concepts
+3.1 Two template classes
+The library exposes two class templates, one per protocol:
+
+// CAN 2.0
+FlexCAN_T4<CAN3, RX_SIZE_256, TX_SIZE_16> myCan;
+
+// CAN FD
+FlexCAN_T4FD<CAN3, RX_SIZE_256, TX_SIZE_16> myFD;
+Template parameters, in order:
+
+Parameter	Type	Meaning
+Bus	CAN_DEV_TABLE	Which physical controller: CAN0/CAN1/CAN2/CAN3 depending on chip (see table above)
+RX queue size	FLEXCAN_RXQUEUE_TABLE	Depth of the software receive queue (default RX_SIZE_16)
+TX queue size	FLEXCAN_TXQUEUE_TABLE	Depth of the software transmit queue (default TX_SIZE_16)
+The queue-size enums (RX_SIZE_2 … RX_SIZE_1024, TX_SIZE_2 … TX_SIZE_1024, all powers of two) are compile-time constants that size an internal Circular_Buffer. Bigger queues cost more RAM but let more frames pile up between calls to events() before anything is dropped. You can give the object any variable name you like, and you can instantiate more than one object for more than one bus.
+
+3.2 Message structures
+CAN_message_t — used for CAN 2.0 frames:
+
+typedef struct CAN_message_t {
+  uint32_t id = 0;          // CAN identifier
+  uint16_t timestamp = 0;   // FlexCAN timer value when the frame arrived
+  uint8_t  idhit = 0;       // which filter slot matched
+  struct {
+    bool extended = 0;      // 29-bit identifier if true
+    bool remote = 0;        // remote transmission request
+    bool overrun = 0;       // message overrun occurred
+    bool reserved = 0;
+  } flags;
+  uint8_t len = 8;          // data length, 0-8
+  uint8_t buf[8] = {0};     // payload
+  int8_t  mb = 0;           // mailbox the frame came from
+  uint8_t bus = 0;          // originating bus (useful with events())
+  bool    seq = 0;          // set true to send as a sequential/ordered frame
+} CAN_message_t;
+CANFD_message_t — used for CAN FD frames. Same idea, but with a 64-byte payload and two extra control bits:
+
+typedef struct CANFD_message_t {
+  uint32_t id = 0;
+  uint16_t timestamp = 0;
+  uint8_t  idhit = 0;
+  bool brs = 1;   // Bit Rate Switch: use the faster FD data rate for the payload
+  bool esi = 0;   // Error State Indicator
+  bool edl = 1;   // Extended Data Length: 1 = FD frame, 0 = classic CAN 2.0 frame
+  struct {
+    bool extended = 0;
+    bool overrun = 0;
+    bool reserved = 0;
+  } flags;
+  uint8_t len = 8;
+  uint8_t buf[64] = {0};
+  int8_t  mb = 0;
+  uint8_t bus = 0;
+  bool    seq = 0;
+} CANFD_message_t;
+Both brs and edl default to 1. If you leave edl = 1, the frame goes out as a true FD frame; set it to 0 to send a classic CAN 2.0-compatible frame (payload truncated to 8 bytes) from the FD object.
+
+3.3 The base class
+Both templates derive from a common abstract base, FlexCAN_T4_Base, which is how the library lets unrelated code (its own ISO-TP module, or a third-party library) hold a generic pointer to "whichever bus object the user created" without knowing if it's CAN 2.0 or FD. You generally don't touch this directly — it exists for interoperability.
+
+4. Quick Start
+Minimal CAN 2.0 sketch:
+
+#include <FlexCAN_T4.h>
+
+FlexCAN_T4<CAN1, RX_SIZE_256, TX_SIZE_16> Can1;
+
+void canSniff(const CAN_message_t &msg) {
+  Serial.print("MB "); Serial.print(msg.mb);
+  Serial.print("  ID: 0x"); Serial.print(msg.id, HEX);
+  Serial.print("  LEN: "); Serial.println(msg.len);
+}
+
+void setup() {
+  Serial.begin(115200);
+  Can1.begin();                 // MUST be called first
+  Can1.setBaudRate(500000);
+  Can1.onReceive(canSniff);     // fires for any interrupt-enabled mailbox
+  Can1.enableMBInterrupts();
+}
+
+void loop() {
+  Can1.events();                // pumps queued RX frames into callbacks
+}
+Minimal CAN FD sketch (Teensy 4, CAN3 only):
+
+#include <FlexCAN_T4.h>
+
+FlexCAN_T4FD<CAN3, RX_SIZE_256, TX_SIZE_16> FD;
+
+void fdSniff(const CANFD_message_t &msg) {
+  Serial.print("ID: 0x"); Serial.print(msg.id, HEX);
+  Serial.print("  LEN: "); Serial.println(msg.len);
+}
+
+void setup() {
+  Serial.begin(115200);
+  FD.begin();
+
+  CANFD_timings_t config;
+  config.clock      = CLK_24MHz;
+  config.baudrate   = 1000000;   // nominal (arbitration) bitrate
+  config.baudrateFD = 2000000;   // data-phase bitrate
+  config.propdelay  = 190;
+  config.bus_length = 1;
+  config.sample     = 75;
+  FD.setBaudRate(config);
+
+  FD.onReceive(fdSniff);
+  FD.enableMBInterrupts();
+}
+
+void loop() {
+  FD.events();
+}
+⚠️ begin() is mandatory before calling anything else. Skipping it will hard-fault the Teensy because the peripheral clock and registers aren't configured yet.
+
+5. Initialization & Baud Rate
+5.1 CAN 2.0
+myCan.begin();
+myCan.setBaudRate(1000000);                       // 1 Mbit/s, normal mode
+myCan.setBaudRate(500000, LISTEN_ONLY);            // listen-only / silent monitoring
+uint32_t rate = myCan.getBaudRate();               // read back the configured rate
+FLEXCAN_RXTX (TX, RX, LISTEN_ONLY) is the second argument on setBaudRate(); passing LISTEN_ONLY puts the controller in a passive monitoring mode that never transmits or acknowledges — handy for bus sniffing without disturbing traffic.
+
+5.2 CAN FD
+CAN FD has three ways to set timing, from simplest to most manual:
+
+a) Fixed presets — nominal 1 Mbit/s arbitration phase with a fixed FD data-phase rate:
+
+FD.setBaudRate(CAN_1M_2M);   // 1 Mbit nominal / 2 Mbit data
+// also available: CAN_1M_4M, CAN_1M_6M, CAN_1M_8M
+b) Custom timings struct — the library computes the bit-timing segments for you:
+
+CANFD_timings_t config;
+config.clock      = CLK_24MHz;   // oscillator/reference clock feeding the controller
+config.baudrate   = 1000000;     // nominal bitrate            (default 1,000,000)
+config.baudrateFD = 2000000;     // FD data-phase bitrate       (default 2,000,000)
+config.propdelay  = 190;         // propagation delay, ns       (default 190)
+config.bus_length = 1;           // bus length, meters          (default 1)
+config.sample     = 75;          // desired sample point, %     (default 75)
+FD.setBaudRate(config);
+FLEXCAN_CLOCK options: CLK_OFF, CLK_8MHz, CLK_16MHz, CLK_20MHz, CLK_24MHz (default), CLK_30MHz, CLK_40MHz, CLK_60MHz, CLK_80MHz.
+
+c) Advanced/manual selection — when the timing solver finds several valid prescaler/segment combinations for your requested rate, setBaudRateAdvanced() lets you pick specific candidate solutions instead of letting the library auto-select the best one:
+
+FD.setBaudRateAdvanced(config, nominal_choice, flexdata_choice, TX);
+This is an expert-level escape hatch; most sketches only need setBaudRate(config).
+
+5.3 Changing the reference clock at runtime (Teensy 4 only)
+myCan.setClock(CLK_60MHz);   // available on FlexCAN_T4 (CAN 2.0); default is 24 MHz
+6. Pin Selection
+Each bus has a default pin pair; you can switch to the alternate pair if your board layout needs it:
+
+myCan.setRX(ALT);   // or DEF (the default)
+myCan.setTX(ALT);
+FLEXCAN_PINS is just { ALT = 0, DEF = 1 }. Call these before/around begin(), per your board's pinout documentation.
+
+7. Sending & Receiving Frames
+7.1 Polling reads
+CAN_message_t msg;          // or CANFD_message_t for the FD class
+if (myCan.read(msg)) {
+  // got a frame
+}
+read() pulls from whichever interrupt-disabled source has data — if FIFO is enabled, each call randomly services either FIFO or a polled mailbox (whichever isn't interrupt-driven). There are also two more explicit variants:
+
+myCan.readMB(msg);     // read only from a (non-interrupt) mailbox
+myCan.readFIFO(msg);   // read only from the FIFO (CAN 2.0 only)
+Polling never touches mailboxes/FIFO you've configured for interrupts — those are drained exclusively through callbacks via events().
+
+7.2 Writing frames
+myCan.write(msg);            // use any available free TX mailbox
+myCan.write(MB15, msg);      // force a specific mailbox (must be configured as TX)
+FIFO is receive-only; it can never be used to transmit.
+
+7.3 Sequential (ordered) frames
+Bus arbitration normally means multiple queued frames can leave in any order (lowest ID wins arbitration first). If you need strict send ordering:
+
+msg.seq = 1;
+myCan.write(msg);
+Sequential frames are always funneled through the single, lowest-numbered TX mailbox and queued for the next cycle if that mailbox is busy, guaranteeing they leave in the order you wrote them.
+
+7.4 events()
+void loop() {
+  myCan.events();
+}
+events() is the pump that moves frames sitting in the internal RX queue out to your registered callbacks (and, for sequential frames, drains the TX queue in order). Call it frequently — from loop(), an IntervalTimer, or a cooperative thread (e.g. TeensyThreads). If you never register any callbacks and only poll with read()/readMB()/readFIFO(), you don't need events().
+
+8. Mailboxes
+8.1 Mailbox identifiers
+FLEXCAN_MAILBOX enumerates MB0 through MB63 (Teensy 4 has 64 physical mailboxes in CAN 2.0 mode; Teensy 3.x has 16), plus a special value FIFO = 99 used wherever an API accepts "the FIFO" in place of a specific mailbox number (e.g. filter or interrupt calls).
+
+8.2 Configuring a mailbox's direction/type
+myCan.setMB(MB9,  TX);            // transmit mailbox
+myCan.setMB(MB10, RX, EXT);       // receive mailbox, accepts extended (29-bit) IDs
+myCan.setMB(MB11, RX, STD);       // receive mailbox, accepts standard (11-bit) IDs
+The third argument is a FLEXCAN_IDE value (STD is the default). Whatever you set here is also what later filter calls implicitly use — filters don't take a separate standard/extended argument for mailboxes; the mailbox's own configured type governs that.
+
+8.3 Limiting mailbox count (CAN 2.0 only)
+myCan.setMaxMB(16);   // only use the first 16 mailboxes
+8.4 Introspection
+myCan.mailboxStatus();
+Prints (over Serial) a breakdown of how many mailboxes are configured as standard RX, extended RX, and TX, whether FIFO is enabled, and how many FIFO filters are available — a good first call after setup to sanity-check your configuration.
+
+9. Callbacks & Interrupts
+9.1 Enabling interrupts per mailbox
+myCan.enableMBInterrupts();          // all mailboxes
+myCan.enableMBInterrupt(MB4);        // just mailbox 4
+myCan.enableMBInterrupt(FIFO);       // the FIFO
+myCan.disableMBInterrupt(MB4);
+myCan.disableMBInterrupts();
+9.2 Registering handlers
+myCan.onReceive(MB0, canSniff);   // fire only for mailbox 0
+myCan.onReceive(MB1, canSniff);   // fire only for mailbox 1
+myCan.onReceive(FIFO, canSniff);  // fire only for FIFO frames
+myCan.onReceive(canSniff);        // global: fire for ANY mailbox/FIFO frame
+
+// CAN 2.0 only — transmit-confirmation callbacks:
+myCan.onTransmit(MB9, txDone);
+myCan.onTransmit(txDone);
+Handler signature (swap CAN_message_t for CANFD_message_t on the FD class):
+
+void canSniff(const CAN_message_t &msg) {
+  Serial.print("MB ");       Serial.print(msg.mb);
+  Serial.print("  OVERRUN: ");Serial.print(msg.flags.overrun);
+  Serial.print("  LEN: ");   Serial.print(msg.len);
+  Serial.print(" EXT: ");    Serial.print(msg.flags.extended);
+  Serial.print(" TS: ");     Serial.print(msg.timestamp);
+  Serial.print(" ID: ");     Serial.print(msg.id, HEX);
+  Serial.print(" Buffer: ");
+  for (uint8_t i = 0; i < msg.len; i++) {
+    Serial.print(msg.buf[i], HEX); Serial.print(" ");
+  }
+  Serial.println();
+}
+Remember callbacks only actually fire when events() is being called regularly.
+
+9.3 Object-oriented callbacks (CAN 2.0 only)
+As an alternative to free-function callbacks, you can subclass CANListener and attach the object directly:
+
+class MyListener : public CANListener {
+  bool frameHandler(CAN_message_t &frame, int mailbox, uint8_t controller) override {
+    // handle frame, return true if consumed
+    return true;
+  }
+};
+
+MyListener listener;
+
+void setup() {
+  myCan.begin();
+  myCan.attachObj(&listener);
+  listener.attachGeneralHandler();      // or listener.attachMBHandler(MB0) for one mailbox
+}
+Use detachObj() / detachMBHandler() / detachGeneralHandler() to unregister. Up to 4 listener objects can be attached per bus (SIZE_LISTENERS = 4). This mechanism exists only on the CAN 2.0 class, not on FlexCAN_T4FD.
+
+9.4 External weak functions
+For interop with other libraries that want raw, unfiltered access to every received frame (e.g. the companion TeensyCAN library), the header declares three weak extern hooks per protocol:
+
+extern void ext_output1(const CAN_message_t &msg);
+extern void ext_output2(const CAN_message_t &msg);
+extern void ext_output3(const CAN_message_t &msg);   // used by TeensyCAN
+
+extern void ext_outputFD1(const CANFD_message_t &msg);
+extern void ext_outputFD2(const CANFD_message_t &msg);
+extern void ext_outputFD3(const CANFD_message_t &msg); // used by TeensyCAN
+Define any of these in your own sketch/library to tap into the interrupt-time data stream, independent of the mailbox/FIFO filtering system.
+
+10. The Filtering System
+FlexCAN's native ID filtering is powerful but fiddly at the register level (raw ID + mask pairs). FlexCAN_T4 wraps it in a much friendlier API and automatically calculates the hardware masks for you.
+
+10.1 Start from a clean slate
+Best practice is to block everything first, then explicitly allow what you want:
+
+myCan.setMBFilter(REJECT_ALL);     // for mailboxes
+myCan.setFIFOFilter(REJECT_ALL);   // for FIFO
+(FLEXCAN_FLTEN is { ACCEPT_ALL = 0, REJECT_ALL = 1 }.)
+
+10.2 Mailbox filters
+myCan.setMBFilter(MB6, 0x123);                       // accept only ID 0x123
+myCan.setMBFilter(MB6, 0x123, 0x456);                // up to 5 IDs per mailbox
+myCan.setMBFilterRange(MB7, 0x1, 0x9);               // accept a contiguous ID range
+myCan.setMBFilter(MB6, ACCEPT_ALL);                  // or REJECT_ALL — per-mailbox on/off
+For more control, the CAN 2.0 class also exposes:
+
+myCan.setMBUserFilter(MB6, 0x123, 0x7FF);            // explicit ID + your own mask
+myCan.setMBManualFilter(MB6, 0x123, 0x7FF);          // raw, lowest-level filter write
+(These two are CAN 2.0-only; the FD class relies on setMBFilter/setMBFilterRange.)
+
+10.3 FIFO filters (CAN 2.0 only)
+myCan.setFIFOFilter(0, 0x123, STD);                  // filter 0: standard ID 0x123
+myCan.setFIFOFilter(1, 0x456, EXT);                  // filter 1: extended ID 0x456
+myCan.setFIFOFilter(2, 0x100, 0x200, STD);           // one filter, two IDs
+myCan.setFIFOFilterRange(3, 0x300, 0x310, STD);      // one filter, ID range
+FLEXCAN_IDE values used here: STD, EXT, RTR, NONE. An optional trailing remote argument (default NONE) lets a filter specifically match/exclude Remote Transmission Request frames.
+
+Related configuration:
+
+myCan.setRFFN(RFFN_16);            // how many FIFO ID filters are available (8..128, steps of 8)
+myCan.setFIFOFilterTable(B);       // choose the underlying hardware filter table format (A/B/C)
+myCan.setFIFOUserFilter(...);      // explicit mask variants, mirroring setMBUserFilter
+myCan.setFIFOManualFilter(...);    // raw, lowest-level variant
+Run mailboxStatus() after enabling FIFO to see exactly how many filter slots you have to work with, since it depends on setRFFN().
+
+10.4 Enhanced filtering (bleed-through suppression)
+Because the CAN 2.0 filtering hardware works with ID+mask pairs, requesting a small set of specific IDs (say, 0x1 and 0x5) can also let other IDs through if they happen to share the same masked bit pattern (here, 0x3 and 0x7 would also match, since only 2 of the ID's bits actually differ between your two requested IDs). To have the library discard those unwanted bleed-through frames after the hardware pass:
+
+myCan.enhanceFilter(MB6);   // per-mailbox
+myCan.enhanceFilter(FIFO);  // for FIFO
+10.5 Distribution
+By default, when several mailboxes/filters could all match the same incoming ID, the FIFO/mailbox that grabs it first "wins" and the others never see it — a problem if you have multiple independent callbacks expecting the same frame. distribute() fixes this by copying the frame into every queue whose filter matches:
+
+myCan.distribute();          // enable
+myCan.distribute(false);     // disable
+11. FIFO Mode (CAN 2.0 only)
+The RX FIFO is a hardware first-in-first-out receive queue that occupies the first several mailboxes' worth of RAM (freeing you from managing individual mailboxes for bulk reception). It exists on both Teensy 3.x and the CAN 2.0 controllers on Teensy 4, but not on the CAN FD controller.
+
+myCan.enableFIFO();             // turn FIFO on
+myCan.disableFIFO();
+myCan.enableFIFOInterrupt();    // drive FIFO reception via interrupt + callback
+myCan.disableFIFOInterrupt();
+myCan.setMRP(true);             // mailbox(1) vs FIFO(0) arbitration priority
+myCan.setRRS(true);             // also store remote-request frames
+FIFO is receive-only (see §7.2) and is read either through readFIFO() (polling) or an onReceive(FIFO, handler) callback (interrupt-driven).
+
+12. CAN FD-Specific Configuration
+12.1 Mailbox regions and payload size
+Unlike CAN 2.0's fixed 8-byte mailboxes, FD mailbox RAM is carved into "regions" whose per-mailbox payload size you choose — bigger payloads per mailbox means fewer total mailboxes, since they share the same RAM:
+
+myFD.setRegions(8);    // default: 64 mailboxes, 8-byte payload each
+myFD.setRegions(64);   // 14 mailboxes, 64-byte (full FD) payload each
+Valid sizes are 8, 16, 32, or 64 bytes. The call returns the actual mailbox count you end up with, so you can check it at runtime. There's also a two-argument form to size the two hardware regions independently:
+
+myFD.setRegions(mbdsr0, mbdsr1);   // configure the two payload regions separately
+12.2 Frame-level FD flags
+Recall from §3.2: CANFD_message_t carries brs (bit-rate switching — use the fast data-phase rate) and edl (extended data length — send as a true FD frame vs. a truncated CAN 2.0-compatible frame), both defaulted to 1.
+
+12.3 What's missing relative to CAN 2.0
+FIFO, setMaxMB(), onTransmit(), CANListener/attachObj(), error(), getRXQueueCount()/getTXQueueCount(), enableLoopBack(), setMRP()/setRRS(), setMBUserFilter()/setMBManualFilter(), and a public reset() are all CAN 2.0-only in this library — see the matrix below.
+
+13. Error Handling & Diagnostics
+CAN 2.0 objects can report bus error/state information:
+
+CAN_error_t err;
+if (myCan.error(err, true)) {   // 'true' also prints a human-readable report to Serial
+  // inspect err.* fields yourself if needed
+}
+CAN_error_t fields:
+
+Field	Type	Meaning
+state	char[30]	Text description of controller state (defaults to "Idle")
+BIT1_ERR, BIT0_ERR	bool	Bit-level transmission errors
+ACK_ERR	bool	No node acknowledged the frame
+CRC_ERR	bool	CRC mismatch
+FRM_ERR	bool	Form/framing error
+STF_ERR	bool	Bit-stuffing error
+TX_WRN, RX_WRN	bool	TX/RX error-warning thresholds reached
+FLT_CONF	char[14]	Fault confinement state text
+RX_ERR_COUNTER, TX_ERR_COUNTER	uint8_t	Live error counters
+ESR1	uint32_t	Raw Error & Status Register 1
+ECR	uint16_t	Raw Error Counter Register
+This diagnostic API is CAN 2.0-only in the current header.
+
+Queue depth introspection (also CAN 2.0-only):
+
+uint32_t pending_rx = myCan.getRXQueueCount();
+uint32_t pending_tx = myCan.getTXQueueCount();
+14. Loopback, DMA, and Reset
+myCan.enableLoopBack();     // CAN 2.0 only: internal loopback for self-test without a bus
+myCan.enableDMA();          // both classes: DMA-assisted mailbox transfers
+myCan.disableDMA();
+myCan.reset();              // CAN 2.0 only (public): soft-reset the controller
+On the FD class, reset() exists internally but is private — it isn't part of the public API.
+
+15. CAN 2.0 vs CAN FD — Feature Matrix
+Feature	FlexCAN_T4 (CAN 2.0)	FlexCAN_T4FD (CAN FD)
+Hardware RX FIFO	✅	❌ (not available on Teensy 4's FD controller)
+onTransmit() callback	✅	❌
+CANListener / attachObj()	✅	❌
+error() / CAN_error_t	✅	❌
+getRXQueueCount() / getTXQueueCount()	✅	❌
+enableLoopBack()	✅	❌
+setMaxMB()	✅	❌ (use setRegions() instead)
+setMRP() / setRRS()	✅	❌
+Public reset()	✅	❌ (private)
+setMBUserFilter() / setMBManualFilter()	✅	❌
+getBaudRate()	✅	❌
+setRegions() (payload-vs-mailbox-count tradeoff)	—	✅
+brs / esi / edl frame flags	—	✅
+setBaudRateAdvanced()	—	✅
+setMB(), setMBFilter()/setMBFilterRange(), enhanceFilter(), distribute(), enableDMA(), events(), onReceive(), mailboxStatus(), write()/read()/readMB()	✅	✅
+(Reflects the header as reviewed; the library is actively developed, so check the latest FlexCAN_T4.h if a method listed here seems to be missing or a new one has appeared.)
+
+16. Full Enum Reference
+enum FLEXCAN_PINS { ALT = 0, DEF = 1 };
+
+enum FLEXCAN_MAILBOX { MB0 = 0, /* ... */ MB63 = 63, FIFO = 99 };
+
+enum FLEXCAN_RXTX { TX, RX, LISTEN_ONLY };
+
+enum FLEXCAN_FDRATES { CAN_1M_2M, CAN_1M_4M, CAN_1M_6M, CAN_1M_8M };
+
+enum FLEXCAN_CLOCK {
+  CLK_OFF, CLK_8MHz = 8, CLK_16MHz = 16, CLK_20MHz = 20,
+  CLK_24MHz = 24, CLK_30MHz = 30, CLK_40MHz = 40,
+  CLK_60MHz = 60, CLK_80MHz = 80
+};
+
+enum FLEXCAN_IDE { NONE = 0, EXT = 1, RTR = 2, STD = 3, INACTIVE };
+
+enum FLEXCAN_FLTEN { ACCEPT_ALL = 0, REJECT_ALL = 1 };
+
+enum FLEXCAN_FIFOTABLE { A = 0, B = 1, C = 2 };   // underlying hardware filter table format
+
+enum FLEXCAN_RXQUEUE_TABLE {
+  RX_SIZE_2 = 2, RX_SIZE_4 = 4, RX_SIZE_8 = 8, RX_SIZE_16 = 16,
+  RX_SIZE_32 = 32, RX_SIZE_64 = 64, RX_SIZE_128 = 128,
+  RX_SIZE_256 = 256, RX_SIZE_512 = 512, RX_SIZE_1024 = 1024
+};
+
+enum FLEXCAN_TXQUEUE_TABLE {
+  TX_SIZE_2 = 2, TX_SIZE_4 = 4, TX_SIZE_8 = 8, TX_SIZE_16 = 16,
+  TX_SIZE_32 = 32, TX_SIZE_64 = 64, TX_SIZE_128 = 128,
+  TX_SIZE_256 = 256, TX_SIZE_512 = 512, TX_SIZE_1024 = 1024
+};
+
+enum FLEXCAN_RFFN_TABLE {           // number of usable Rx FIFO ID filters
+  RFFN_8 = 0, RFFN_16 = 1, RFFN_24 = 2, RFFN_32 = 3,
+  RFFN_40 = 4, RFFN_48 = 5, RFFN_56 = 6, RFFN_64 = 7,
+  RFFN_72 = 8, RFFN_80 = 9, RFFN_88 = 10, RFFN_96 = 11,
+  RFFN_104 = 12, RFFN_112 = 13, RFFN_120 = 14, RFFN_128 = 15
+};
+
+enum CAN_DEV_TABLE {
+  // Teensy 4 (__IMXRT1062__)
+  CAN1 = 0x401D0000, CAN2 = 0x401D4000, CAN3 = 0x401D8000,
+  // Teensy 3.x (__MK20DX256__ / __MK64FX512__ / __MK66FX1M0__)
+  CAN0 = 0x40024000 /* etc. — resolved per-chip at compile time */
+};
+(FLEXCAN_DLC_SIZE and FLEXCAN_FILTER_TABLE also exist but are internal implementation details used by the FD DLC↔length conversion and the filter-storage helpers — you won't normally reference them directly.)
+
+17. Bonus Module: ISO-TP
+The repository also ships a separate, optional ISO 15765-2 (ISO-TP) transport-layer module (isotp.h / isotp.tpp) that layers multi-frame messaging on top of a FlexCAN_T4 bus object — useful for UDS/diagnostic-style payloads larger than a single CAN frame.
+
+#include <FlexCAN_T4.h>
+#include <isotp.h>
+
+FlexCAN_T4<CAN1, RX_SIZE_256, TX_SIZE_16> Can1;
+isotp<RX_BANKS_16, 32> isotp1;   // template: RX bank depth, max payload length
+
+void isotpReceive(const ISOTP_data &config, const uint8_t *buf) {
+  // handle a reassembled multi-frame payload
+}
+
+void setup() {
+  Can1.begin();
+  Can1.setBaudRate(500000);
+
+  isotp1.setWriteBus(&Can1);
+  isotp1.onReceive(isotpReceive);
+  isotp1.begin();
+}
+
+void loop() {
+  Can1.events();
+}
+Key pieces:
+
+ISOTP_data struct: id, flags.extended, flags.usePadding, flags.separation_uS, len, blockSize, flow_control_type (0=Clear to Send, 1=Wait, 2=Abort), separation_time.
+ISOTP_RXBANKS_TABLE: RX_BANKS_2 … RX_BANKS_1024, the first template parameter (reassembly buffer depth).
+isotp1.write(config, buf, size) — send an arbitrary-length buffer, automatically segmented into CAN frames.
+isotp1.sendFlowControl(config) — manually send a flow-control frame.
+isotp1.setPadding(byte) — set the pad byte used when usePadding is set (default 0xA5).
+This module is a separate feature from the core FlexCAN_T4/FlexCAN_T4FD classes documented above; treat it as an add-on for diagnostic/transport-layer use cases.
+
+18. Other Files in the Repo
+File	Purpose
+circular_buffer.h	Internal generic ring-buffer template backing the RX/TX software queues
+imxrt_flexcan.h	Low-level FlexCAN register/peripheral definitions for Teensy 4 (i.MX RT1062)
+kinetis_flexcan.h	Low-level FlexCAN register/peripheral definitions for Teensy 3.x (Kinetis)
+isotp_server.h / isotp_server.tpp	Server-side helper built on the ISO-TP module
+keywords.txt	Arduino IDE syntax-highlighting keyword list
+FlexCAN_T4Beta1BoardArchive.zip	Archived board-support files for an early Teensy 4 prototype revision
+19. Practical Tips & Gotchas
+Always call begin() first. Any other call before it can hard-fault the board.
+Default-deny, then allow. Start filters from REJECT_ALL and explicitly open up the IDs you want — it's much easier to reason about than starting from "accept everything."
+Multi-ID filters can bleed through. If a mailbox/FIFO filter set for several specific IDs also lets a couple of unexpected IDs in, that's expected CAN mask behavior — fix it with enhanceFilter().
+First match wins, unless you distribute(). If two mailboxes/filters could both catch the same frame, only one actually will, by default.
+FIFO never transmits. It's RX-only; use mailboxes (write()) for sending.
+Interrupt-driven and polled sources don't overlap. read()/readMB()/readFIFO() never touch mailboxes you've enabled interrupts on — those are drained only through events() + callbacks.
+events() needs to run often — put it in loop(), an IntervalTimer, or a cooperative thread; callbacks (and sequential-frame transmission) only fire when it's called.
+Only Teensy 4's CAN3 does FD. Every other bus/board combination is CAN 2.0 only.
+Bigger RX/TX queue templates cost RAM. Size them to your actual traffic burst needs, not just "as large as possible."
+20. Complete Example Sketches
+20.1 CAN 2.0 — FIFO + filtering + callback + polling TX
+#include <FlexCAN_T4.h>
+
+FlexCAN_T4<CAN1, RX_SIZE_256, TX_SIZE_16> Can1;
+
+void canSniff(const CAN_message_t &msg) {
+  Serial.print("MB "); Serial.print(msg.mb);
+  Serial.print("  LEN: "); Serial.print(msg.len);
+  Serial.print("  ID: 0x"); Serial.print(msg.id, HEX);
+  Serial.print("  DATA:");
+  for (uint8_t i = 0; i < msg.len; i++) {
+    Serial.print(" "); Serial.print(msg.buf[i], HEX);
+  }
+  Serial.println();
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  Can1.begin();
+  Can1.setBaudRate(500000);
+
+  Can1.enableFIFO();
+  Can1.enableFIFOInterrupt();
+  Can1.onReceive(FIFO, canSniff);
+
+  Can1.setFIFOFilter(REJECT_ALL);
+  Can1.setFIFOFilter(0, 0x123, STD);   // only let 0x123 through
+  Can1.enhanceFilter(FIFO);
+
+  Can1.mailboxStatus();
+}
+
+void loop() {
+  Can1.events();
+
+  static uint32_t last = 0;
+  if (millis() - last > 500) {
+    last = millis();
+    CAN_message_t msg;
+    msg.id = 0x321;
+    msg.len = 8;
+    for (uint8_t i = 0; i < 8; i++) msg.buf[i] = i;
+    Can1.write(msg);
+  }
+}
+20.2 CAN FD — custom timing, wide mailboxes, mailbox filter
+#include <FlexCAN_T4.h>
+
+FlexCAN_T4FD<CAN3, RX_SIZE_256, TX_SIZE_16> FD;
+
+void fdSniff(const CANFD_message_t &msg) {
+  Serial.print("ID: 0x"); Serial.print(msg.id, HEX);
+  Serial.print("  LEN: "); Serial.print(msg.len);
+  Serial.print("  BRS: "); Serial.println(msg.brs);
+}
+
+void setup() {
+  Serial.begin(115200);
+  FD.begin();
+
+  CANFD_timings_t config;
+  config.clock      = CLK_24MHz;
+  config.baudrate   = 1000000;
+  config.baudrateFD = 2000000;
+  config.propdelay  = 190;
+  config.bus_length = 1;
+  config.sample     = 75;
+  FD.setBaudRate(config);
+
+  FD.setRegions(64);            // fewer, larger (64-byte) mailboxes
+  FD.setMB(MB0, RX, STD);
+  FD.setMBFilter(REJECT_ALL);
+  FD.setMBFilter(MB0, 0x123);
+  FD.onReceive(MB0, fdSniff);
+  FD.enableMBInterrupt(MB0);
+
+  FD.mailboxStatus();
+}
+
+void loop() {
+  FD.events();
+
+  static uint32_t last = 0;
+  if (millis() - last > 500) {
+    last = millis();
+    CANFD_message_t msg;
+    msg.id = 0x456;
+    msg.len = 32;
+    msg.brs = 1;
+    msg.edl = 1;
+    for (uint8_t i = 0; i < msg.len; i++) msg.buf[i] = i;
+    FD.write(msg);
+  }
+}
+Compiled from the FlexCAN_T4 README.md, FlexCAN_T4.h, and isotp.h sources. For the latest updates, open issues, or example sketches, see the repository itself and its forum thread.

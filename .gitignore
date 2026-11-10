@@ -2,3 +2,5 @@
 .vscode/
 .cache/
 .obsidian/
+
+compile_commands.json
