@@ -58,20 +58,25 @@ void canController::write(FLEXCAN_MAILBOX mailbox, uint32_t id, const MessageDat
 }
 
 void canController::init() {
+  Serial.println("Initalizing CAN Controller");
+
   getBus().begin();
 
   getBus().setBaudRate(canConfig::CAN_BAUD_RATE);
   getBus().setMBFilter(REJECT_ALL);  // disable all mailboxes
 
-  getBus().enableFIFO();
-  getBus().setFIFOFilter(ACCEPT_ALL);
-  getBus().onReceive(FIFO, sniffMessage);
-  getBus().enableFIFOInterrupt();
+  if (canConfig::canMonitorEnabled) {
+    getBus().onReceive(sniffMessage);
+  }
 
-  // pass dedicated mailbox messages to fifo for debugging
-  getBus().distribute(canConfig::canMonitorEnabled);
+  if (canConfig::canMonitorEnabled) {
+    getBus().enableFIFO();
+    getBus().setFIFOFilter(ACCEPT_ALL);
+    getBus().onReceive(FIFO, sniffMessage);
+    getBus().enableFIFOInterrupt();
 
-  usedMailboxes += canConfig::FIFO_MAILBOX_COUNT;
+    usedMailboxes += canConfig::FIFO_MAILBOX_COUNT;
+  }
 
   // Preserve a TX mailbox always
   usedMailboxes++;
