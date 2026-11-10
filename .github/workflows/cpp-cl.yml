@@ -1,93 +1,78 @@
-# name: C++ CI
+name: C++ CI
 
-# on:
-#   pull_request:
-#   push:
-#     branches:
-#       - main
+on:
+  pull_request:
 
-# jobs:
-#   lint:
-#     name: Run C++ Linter
-#     runs-on: ubuntu-latest
+# The PlatformIO project lives in Firmware/vcu, not the repo root.
+defaults:
+  run:
+    working-directory: Firmware/vcu
 
-#     steps:
-#       - name: Checkout code
-#         uses: actions/checkout@v4
+jobs:
+  format:
+    name: Check formatting (clang-format)
+    runs-on: ubuntu-24.04
 
-#       - name: Set up Python
-#         uses: actions/setup-python@v5
-#         with:
-#           python-version: '3.11'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-#       - name: Cache PlatformIO
-#         uses: actions/cache@v4
-#         with:
-#           path: |
-#             ~/.cache/pip
-#             ~/.platformio/.cache
-#           key: ${{ runner.os }}-pio-${{ hashFiles('platformio.ini') }}
-#           restore-keys: |
-#             ${{ runner.os }}-pio-
+      - name: Install clang-format
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format
+          clang-format --version
 
-#       - name: Install PlatformIO Core
-#         run: pip install --upgrade platformio
+      - name: Check C++ formatting
+        run: |
+          find src include -type f \( -name '*.hpp' -o -name '*.h' -o -name '*.cpp' -o -name '*.c' \) -print0 \
+            | xargs -0 clang-format -style=file -n -Werror
 
-#       - name: Install lint tools
-#         run: |
-#           sudo apt-get update
-#           sudo apt-get install -y clang-format clang-tidy
+  build:
+    name: Build firmware (PlatformIO)
+    runs-on: ubuntu-24.04
 
-#       - name: Show tool versions
-#         run: |
-#           pio --version
-#           clang-format --version
-#           clang-tidy --version
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-#       - name: Build to generate compile_commands.json
-#         run: pio run -e teensy41
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
-#       - name: Check C++ formatting
-#         run: |
-#           find src -type f \( -name '*.hpp' -o -name '*.h' -o -name '*.cpp' -o -name '*.cc' -o -name '*.cxx' \) -print0 \
-#             | xargs -0 clang-format -style=file -n -Werror
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.platformio/.cache
+            ~/.platformio/packages
+            ~/.platformio/platforms
+          key: ${{ runner.os }}-pio-${{ hashFiles('Firmware/vcu/platformio.ini') }}
+          restore-keys: |
+            ${{ runner.os }}-pio-
 
-#       - name: Verify compile_commands.json
-#         run: |
-#           test -f .pio/build/compile_commands.json && echo "found, entries:" && python3 -c "import json; print(len(json.load(open('.pio/build/compile_commands.json'))))"
-      
-#       - name: Run clang-tidy
-#         run: |
-#           find src -name '*.cpp' -o -name '*.c' | xargs clang-tidy -p .pio/build --config-file=.clang-tidy
+      - name: Install PlatformIO Core
+        run: pip install --upgrade platformio
 
-#   build:
-#     name: Build PlatformIO project
-#     runs-on: ubuntu-latest
+      - name: Build
+        run: pio run -e teensy41
 
-#     steps:
-#       - name: Checkout code
-#         uses: actions/checkout@v4
+      # clang-tidy has to parse the ARM/Teensy compile commands, which is fragile on a stock
+      # runner, so it reports findings but never fails the build.
+      - name: Install clang-tidy
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-tidy
 
-#       - name: Set up Python
-#         uses: actions/setup-python@v5
-#         with:
-#           python-version: '3.11'
-
-#       - name: Cache PlatformIO
-#         uses: actions/cache@v4
-#         with:
-#           path: |
-#             ~/.cache/pip
-#             ~/.platformio/.cache
-#           key: ${{ runner.os }}-pio-${{ hashFiles('platformio.ini') }}
-#           restore-keys: |
-#             ${{ runner.os }}-pio-
-
-#       - name: Install PlatformIO Core
-#         run: pip install --upgrade platformio
-
-#       - name: Show tool versions
-#         run: pio --version
-
-#       - name: Build PlatformIO project
-#         run: pio run -e teensy41
+      - name: Run clang-tidy (non-blocking)
+        continue-on-error: true
+        run: |
+          DB=$(find .pio -name compile_commands.json | head -n 1)
+          if [ -z "$DB" ]; then
+            echo "compile_commands.json not found under .pio"
+            exit 1
+          fi
+          echo "using $DB"
+          clang-tidy -p "$(dirname "$DB")" --config-file=.clang-tidy src/*.cpp
