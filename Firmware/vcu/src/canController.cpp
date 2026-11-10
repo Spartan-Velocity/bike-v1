@@ -84,7 +84,7 @@ void canController::init() {
   getBus().setMB(tempMailbox, RX);  // set mailbox 1 to receive default
   getBus().setMBFilter(tempMailbox, REJECT_ALL);
   getBus().enableMBInterrupt(tempMailbox);
-  
+
   getBus().events();
 }
 
