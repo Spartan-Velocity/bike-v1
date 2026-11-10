@@ -1,10 +1,15 @@
 #pragma once
 
+#include <stdint.h>
 #include <cstdint>
 
-namespace motorController {
+class motorController {
+ public:
+  static void init();
+  static void poll();
 
-void init();
-void poll();
-
-} // namespace motorController
+ private:
+  inline static volatile bool paramRecieved{};
+  inline static volatile bool paramOk{};
+  inline static volatile uint16_t expectedAddr{};
+};

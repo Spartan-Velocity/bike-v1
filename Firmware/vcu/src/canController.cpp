@@ -3,17 +3,12 @@
 
 #include "config.hpp"
 
-namespace canController {
+FlexCAN_T4<CAN1, RX_SIZE_256, TX_SIZE_16> canController::getBus() {
+  static FlexCAN_T4<CAN1, RX_SIZE_256, TX_SIZE_16> bus;
+  return bus;
+};
 
-namespace {
-
-FlexCAN_T4<CAN1, RX_SIZE_256, TX_SIZE_16> canBus;
-
-uint8_t usedMailboxes = 0;
-
-void sniffMessage(const Message& msg);
-
-void sniffMessage(const Message& msg) {
+void canController::sniffMessage(const Message& msg) {
   Serial.printf("%10lu %c %03lX [%u]",
                 micros(),
                 msg.flags.extended ? 'X' : 'S',
@@ -25,77 +20,72 @@ void sniffMessage(const Message& msg) {
   Serial.println();
 }
 
-}  // namespace
-
-void requestMessages(uint32_t id, _MB_ptr handler, bool interupt) {
+void canController::requestMessages(uint32_t id, _MB_ptr handler, bool interupt) {
   auto mailbox = FLEXCAN_MAILBOX(usedMailboxes);
 
-  canBus.setMB(mailbox, RX);
-  canBus.setMBFilter(mailbox, id);
-  canBus.onReceive(mailbox, handler);
+  getBus().setMB(mailbox, RX);
+  getBus().setMBFilter(mailbox, id);
+  getBus().onReceive(mailbox, handler);
   if (interupt) {
-    canBus.enableMBInterrupt(mailbox);
+    getBus().enableMBInterrupt(mailbox);
   }
 
   usedMailboxes++;
 }
 
-void requestMessage(uint32_t id, _MB_ptr handler) {
-  canBus.setMBFilter(MB1, id);
-  canBus.onReceive(MB1, handler);
+void canController::requestMessage(uint32_t id, _MB_ptr handler) {
+  getBus().setMBFilter(MB1, id);
+  getBus().onReceive(MB1, handler);
 
   usedMailboxes++;
 }
 
-FLEXCAN_MAILBOX requestWriteMailbox() {
+FLEXCAN_MAILBOX canController::requestWriteMailbox() {
   return FLEXCAN_MAILBOX(usedMailboxes++);
 }
 
-// void write(const Message& msg) {
-//   canBus.write(msg);
-// }
-
-void write(uint32_t id, const MessageData* data, uint8_t len) {
+void canController::write(uint32_t id, const MessageData* data, uint8_t len) {
   CAN_message_t m;
   m.id = id;
   m.len = len;
   memcpy(m.buf, data, len);
-  canBus.write(m);
+  getBus().write(m);
 }
 
-void write(FLEXCAN_MAILBOX mailbox, uint32_t id, const MessageData* data, uint8_t len) {
+void canController::write(FLEXCAN_MAILBOX mailbox,
+                          uint32_t id,
+                          const MessageData* data,
+                          uint8_t len) {
   CAN_message_t m;
   m.id = id;
   m.len = len;
   memcpy(m.buf, data, len);
-  canBus.write(mailbox, m);
+  getBus().write(mailbox, m);
 }
 
-void init() {
-  canBus.begin();
+void canController::init() {
+  getBus().begin();
 
-  canBus.setBaudRate(canConfig::CAN_BAUD_RATE);
-  canBus.setMBFilter(REJECT_ALL);  // disable all mailboxes
+  getBus().setBaudRate(canConfig::CAN_BAUD_RATE);
+  getBus().setMBFilter(REJECT_ALL);  // disable all mailboxes
 
-  canBus.setMB(MB0, TX);  // set mailbox 0 to transmit default
+  getBus().setMB(MB0, TX);  // set mailbox 0 to transmit default
   usedMailboxes++;
 
-  canBus.setMB(MB1, RX); // set mailbox 1 to receive default
-  canBus.enableMBInterrupt(MB1);
+  getBus().setMB(MB1, RX);  // set mailbox 1 to receive default
+  getBus().enableMBInterrupt(MB1);
   usedMailboxes++;
 
   // enable fifo mailbox for message sniffing
-  canBus.enableFIFO();
-  canBus.setFIFOFilter(ACCEPT_ALL);
-  canBus.onReceive(FIFO, sniffMessage);
-  // canBus.enableFIFOInterrupt();
+  getBus().enableFIFO();
+  getBus().setFIFOFilter(ACCEPT_ALL);
+  getBus().onReceive(FIFO, sniffMessage);
+  // getBus().enableFIFOInterrupt();
 
   // pass dedicated mailbox messages to fifo for debugging
-  canBus.distribute(canConfig::canMonitorEnabled);
+  getBus().distribute(canConfig::canMonitorEnabled);
 }
 
-void poll() {
-  canBus.events();
+void canController::poll() {
+  getBus().events();
 }
-
-}  // namespace canController

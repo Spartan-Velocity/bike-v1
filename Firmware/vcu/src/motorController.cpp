@@ -6,26 +6,16 @@
 #include "config.hpp"
 #include "elapsedMillis.h"
 
-namespace motorController {
-
-namespace {
-
-volatile bool paramRecieved;
-volatile bool paramOk;
-volatile uint16_t expectedAddr;
-
-}  // namespace
-
-void init() {
+void motorController::init() {
   for (const auto& param : motorConfig::PARAMS) {
-    canController::MessageData data = CAN_DATA(param[0] & 0xFF,  // parameter address, little-endian
-                                               param[0] >> 8,
-                                               1,                // 1 = write, 0 = read
-                                               0,                // reserved
-                                               param[1] & 0xFF,  // data, little-endian
-                                               param[1] >> 8,
-                                               0,  // reserved
-                                               0);
+    MessageData data = CAN_DATA(param[0] & 0xFF,  // parameter address, little-endian
+                                param[0] >> 8,
+                                1,                // 1 = write, 0 = read
+                                0,                // reserved
+                                param[1] & 0xFF,  // data, little-endian
+                                param[1] >> 8,
+                                0,  // reserved
+                                0);
 
     paramRecieved = false;
     paramOk = false;
@@ -53,6 +43,4 @@ void init() {
   }
 }
 
-void poll() {}
-
-}  // namespace motorController
+void motorController::poll() {}
