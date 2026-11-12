@@ -1,6 +1,6 @@
 #pragma once
 
 class pumpController {
-public:
+ public:
   static void init();
 };
