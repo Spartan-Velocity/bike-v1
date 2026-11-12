@@ -4,7 +4,7 @@
 #include "motorController.hpp"
 
 void initSerial() {
-  auto timeout = elapsedMillis();
+  elapsedMillis timeout{};
   Serial.begin(115200);
 
   while (!Serial && timeout < 3000) {

@@ -31,7 +31,7 @@ void motorController::init() {
 
     canController::write(motorConfig::MSGID_TX_PARAM, &data);
 
-    auto timeout = elapsedMillis();
+    elapsedMillis timeout{};
     while (!paramRecieved && timeout < motorConfig::PARAM_RX_TIMEOUT) {
       canController::poll();
     }
@@ -43,13 +43,13 @@ void motorController::init() {
     }
   }
 
-  elapsed = elapsedMillis();
+  elapsed = 0;
 }
 
 void motorController::poll() {
   if (elapsed > motorConfig::COMMAND_MSG_RATE) {
     sendCommandMessage();
-    elapsed = elapsedMillis();
+    elapsed = 0;
   }
 }
 
