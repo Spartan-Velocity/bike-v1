@@ -73,6 +73,7 @@ void canController::init() {
     getBus().enableFIFO();
     getBus().setFIFOFilter(ACCEPT_ALL);
     getBus().enableFIFOInterrupt();
+    getBus().setMRP(true);
 
     usedMailboxes += canConfig::FIFO_MAILBOX_COUNT;
   }
