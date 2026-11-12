@@ -1,29 +1,34 @@
 #include <Arduino.h>
 
+#include <elapsedMillis.h>
+
 #include "canController.hpp"
 #include "displayController.hpp"
-#include "elapsedMillis.h"
 #include "motorController.hpp"
 
-void initSerial() {
-  auto timeout = elapsedMillis();
-  Serial.begin(115200);
+namespace {
 
-  while (!Serial && timeout < 3000) {
-  }
-  Serial.println("Serial initalized");
+void initSerial() {
+    auto timeout = elapsedMillis();
+    Serial.begin(115200);
+
+    while (!Serial && timeout < 3000) {
+    }
+    Serial.println("Serial Initalized");
 }
 
+}  // namespace
+
 void setup() {
-  initSerial();
+    initSerial();
 
-  canController::init();
-  motorController::init();
+    CANController::init();
+    MotorController::init();
 
-  displayController::writeVal("loaded", 1);
+    DisplayController::writeVal("loaded", 1);
 }
 
 void loop() {
-  canController::poll();
-  motorController::poll();
+    CANController::poll();
+    MotorController::poll();
 }

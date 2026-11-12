@@ -1,6 +1,6 @@
 #pragma once
 
-class pumpController {
- public:
-  static void init();
+class PumpController {
+  public:
+    static void init();
 };
