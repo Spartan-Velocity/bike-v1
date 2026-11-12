@@ -20,14 +20,8 @@ void motorController::init() {
   for (const auto& param : motorConfig::PARAMS) {
     Serial.printf("param %u write value %u\n", param[0], param[1]);
 
-    MessageData data = CAN_DATA(param[0] & 0xFF,  // parameter address, little-endian
-                                param[0] >> 8,
-                                1,                // 1 = write, 0 = read
-                                0,                // reserved
-                                param[1] & 0xFF,  // data, little-endian
-                                param[1] >> 8,
-                                0,  // reserved
-                                0);
+    MessageData data =
+        CAN_DATA(param[0] & 0xFF, param[0] >> 8, 1, 0, param[1] & 0xFF, param[1] >> 8, 0, 0);
 
     paramRecieved = false;
     paramOk = false;
