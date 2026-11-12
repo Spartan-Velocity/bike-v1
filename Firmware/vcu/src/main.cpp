@@ -1,4 +1,6 @@
 #include <Arduino.h>
+
+#include "displayController.hpp"
 #include "canController.hpp"
 #include "elapsedMillis.h"
 #include "motorController.hpp"
@@ -17,6 +19,8 @@ void setup() {
 
   canController::init();
   motorController::init();
+
+  displayController::writeVal("loaded", 1);
 }
 
 void loop() {
