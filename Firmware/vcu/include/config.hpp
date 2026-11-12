@@ -1,8 +1,6 @@
 #pragma once
 
-#include <cstdint>
-
-#include "HardwareSerial.h"
+#include <HardwareSerial.h>
 
 namespace canConfig {
 
@@ -17,14 +15,14 @@ constexpr uint8_t FIFO_MAILBOX_COUNT = 8;
 
 namespace motorConfig {
 
-constexpr uint32_t WHEEL_CONTROLLER_CANID = 0x0A0u;
+constexpr uint32_t WHEEL_CONTROLLER_CANID = 0x0A0U;
 
-constexpr uint32_t MSGID_TX_COMMAND = WHEEL_CONTROLLER_CANID + 0x20u;
-constexpr uint32_t MSGID_RT_STATES = WHEEL_CONTROLLER_CANID + 0x0Au;
-constexpr uint32_t MSGID_RT_FAULTS = WHEEL_CONTROLLER_CANID + 0x0Bu;
+constexpr uint32_t MSGID_TX_COMMAND = WHEEL_CONTROLLER_CANID + 0x20U;
+constexpr uint32_t MSGID_RT_STATES = WHEEL_CONTROLLER_CANID + 0x0AU;
+constexpr uint32_t MSGID_RT_FAULTS = WHEEL_CONTROLLER_CANID + 0x0BU;
 
-constexpr uint32_t MSGID_TX_PARAM = WHEEL_CONTROLLER_CANID + 0x21u;
-constexpr uint32_t MSGID_RX_PARAM = WHEEL_CONTROLLER_CANID + 0x22u;
+constexpr uint32_t MSGID_TX_PARAM = WHEEL_CONTROLLER_CANID + 0x21U;
+constexpr uint32_t MSGID_RX_PARAM = WHEEL_CONTROLLER_CANID + 0x22U;
 
 constexpr uint16_t PARAMS[][2] = {};
 

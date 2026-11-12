@@ -1,58 +1,59 @@
 #include "displayController.hpp"
 
+#include <elapsedMillis.h>
+#include <usb_serial.h>
+
 #include "config.hpp"
-#include "elapsedMillis.h"
-#include "usb_serial.h"
 
-void displayController::writeEnd() {
-  displayConfig::NEXTION.write(0xFF);
-  displayConfig::NEXTION.write(0xFF);
-  displayConfig::NEXTION.write(0xFF);
+void DisplayController::writeEnd() {
+    displayConfig::NEXTION.write(0xFF);
+    displayConfig::NEXTION.write(0xFF);
+    displayConfig::NEXTION.write(0xFF);
 }
 
-void displayController::writeVal(const char* obj, int32_t value) {
-  displayConfig::NEXTION.print(obj);
-  displayConfig::NEXTION.print(".val=");
-  displayConfig::NEXTION.print(value);
+void DisplayController::writeVal(const char* obj, int32_t value) {
+    displayConfig::NEXTION.print(obj);
+    displayConfig::NEXTION.print(".val=");
+    displayConfig::NEXTION.print(value);
 
-  writeEnd();
+    writeEnd();
 }
 
-void displayController::writeTxt(const char* obj, const char* text) {
-  displayConfig::NEXTION.print(obj);
-  displayConfig::NEXTION.print(".txt=\"");
-  displayConfig::NEXTION.print(text);
-  displayConfig::NEXTION.print("\"");
+void DisplayController::writeTxt(const char* obj, const char* text) {
+    displayConfig::NEXTION.print(obj);
+    displayConfig::NEXTION.print(".txt=\"");
+    displayConfig::NEXTION.print(text);
+    displayConfig::NEXTION.print("\"");
 
-  writeEnd();
+    writeEnd();
 }
 
-void displayController::writeCmd(const char* cmd) {
-  displayConfig::NEXTION.print(cmd);
+void DisplayController::writeCmd(const char* cmd) {
+    displayConfig::NEXTION.print(cmd);
 
-  writeEnd();
+    writeEnd();
 }
 
-void displayController::init() {
-  displayConfig::NEXTION.begin(displayConfig::DISPLAY_BAUD);
+void DisplayController::init() {
+    Serial.println("Initalizing Display Controller");
 
-  Serial.println("Connecting to Nextion...");
+    displayConfig::NEXTION.begin(displayConfig::DISPLAY_BAUD);
 
-  auto timeout = elapsedMillis();
+    elapsedMillis timeout{};
 
-  while (displayConfig::NEXTION.available() == 0) {
-    if (timeout > displayConfig::DISPLAY_TIMEOUT) {
-      Serial.println("Nextion timeout");
-      return;
+    while (displayConfig::NEXTION.available() == 0) {
+        if (timeout > displayConfig::DISPLAY_TIMEOUT) {
+            Serial.println("Nextion timeout");
+            return;
+        }
+        writeCmd("connect");
     }
-    writeCmd("connect");
-  }
 
-  writeCmd("blkcmd=3");
+    writeCmd("blkcmd=3");
 
-  while (displayConfig::NEXTION.available() != 0) {
-    displayConfig::NEXTION.read();
-  }
+    while (displayConfig::NEXTION.available() != 0) {
+        displayConfig::NEXTION.read();
+    }
 
-  Serial.println("Nextion connected");
+    Serial.println("Nextion connected");
 }

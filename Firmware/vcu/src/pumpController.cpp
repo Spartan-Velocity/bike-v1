@@ -1,13 +1,19 @@
 #include "pumpController.hpp"
 
+#include <core_pins.h>
+#include <usb_serial.h>
+
 #include "config.hpp"
-#include "core_pins.h"
 
-void pumpController::init() {
-  pinMode(pumpConfig::PUMP_PWM_PIN, OUTPUT);
+void PumpController::init() {
+    Serial.println("Initalizing Pump Controller");
 
-  analogWriteResolution(8);
-  analogWriteFrequency(pumpConfig::PUMP_PWM_PIN, pumpConfig::PUMP_PWM_FREQUENCY);
+    pinMode(pumpConfig::PUMP_PWM_PIN, OUTPUT);
 
-  analogWrite(pumpConfig::PUMP_PWM_PIN, pumpConfig::PUMP_PWM_DUTYCYCLE);
+    analogWriteResolution(8);
+    analogWriteFrequency(pumpConfig::PUMP_PWM_PIN, pumpConfig::PUMP_PWM_FREQUENCY);
+
+    analogWrite(pumpConfig::PUMP_PWM_PIN, pumpConfig::PUMP_PWM_DUTYCYCLE);
+
+    Serial.println("Initalized Pump Controller");
 }
