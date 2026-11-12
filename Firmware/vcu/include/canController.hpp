@@ -30,7 +30,7 @@ class canController {
   static void poll();
 
  private:
-  inline static uint8_t usedMailboxes{};
+  inline static uint8_t usedMailboxes{0};
   inline static FLEXCAN_MAILBOX tempMailbox{};
 
   static void sniffMessage(const Message& msg);

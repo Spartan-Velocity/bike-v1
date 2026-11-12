@@ -2,6 +2,8 @@
 
 #include <stdint.h>
 #include <cstdint>
+#include "canController.hpp"
+#include "elapsedMillis.h"
 
 class motorController {
  public:
@@ -9,7 +11,18 @@ class motorController {
   static void poll();
 
  private:
-  inline static volatile bool paramRecieved{};
-  inline static volatile bool paramOk{};
+  inline static volatile bool paramRecieved{false};
+  inline static volatile bool paramOk{false};
   inline static volatile uint16_t expectedAddr{};
+
+  inline static bool enabled{false};
+  inline static bool lockout{true};
+
+  inline static int16_t toruqe{};
+
+  inline static elapsedMillis elapsed{};
+
+  static void sendCommandMessage();
+
+  static void onStateMessage(const Message& msg);
 };

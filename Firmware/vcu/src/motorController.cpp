@@ -9,13 +9,15 @@
 void motorController::init() {
   Serial.println("Initalizing motor controller");
 
-  canController::requestMessageTemp(motorConfig::MSGID_RX_PARAM, [](const CAN_message_t& msg) {
+  canController::requestMessageTemp(motorConfig::MSGID_RX_PARAM, [](const Message& msg) {
     if ((msg.buf[0] | (msg.buf[1] << 8)) != expectedAddr) {
       return;
     }
     paramOk = (msg.buf[2] == 1);
     paramRecieved = true;
   });
+
+  canController::requestMessages(motorConfig::MSGID_RT_STATES, onStateMessage);
 
   for (const auto& param : motorConfig::PARAMS) {
     Serial.printf("param %u write value %u\n", param[0], param[1]);
@@ -40,6 +42,31 @@ void motorController::init() {
       Serial.printf("param %u write failed\n", param[0]);
     }
   }
+
+  elapsed = elapsedMillis();
 }
 
-void motorController::poll() {}
+void motorController::poll() {
+  if (elapsed > motorConfig::COMMAND_MSG_RATE) {
+    sendCommandMessage();
+    elapsed = elapsedMillis();
+  }
+}
+
+void motorController::onStateMessage(const Message& msg) {
+  bool lockoutStatus = bitRead(msg.buf[6], 7);
+  if (lockoutStatus && !lockout) {
+    enabled = false;
+    lockout = true;
+
+    Serial.println("Motor lockout enabled");
+  }
+}
+
+void motorController::sendCommandMessage() {
+  auto on = enabled && !lockout;
+  auto torqueOut = on ? toruqe : 0;
+  auto direction = torqueOut > 0;
+  MessageData data = CAN_DATA(torqueOut & 0xFF, torqueOut >> 8 & 0xFF, 0, 0, direction, on, 0, 0);
+  canController::write(motorConfig::MSGID_TX_COMMAND, &data);
+}
