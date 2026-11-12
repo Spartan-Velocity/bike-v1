@@ -7,7 +7,7 @@
 #include "elapsedMillis.h"
 
 void motorController::init() {
-  Serial.println("Initalizing motor Controller");
+  Serial.println("Initalizing motor controller");
 
   canController::requestMessageTemp(motorConfig::MSGID_RX_PARAM, [](const CAN_message_t& msg) {
     if ((msg.buf[0] | (msg.buf[1] << 8)) != expectedAddr) {
@@ -18,6 +18,8 @@ void motorController::init() {
   });
 
   for (const auto& param : motorConfig::PARAMS) {
+    Serial.printf("param %u write value %u\n", param[0], param[1]);
+
     MessageData data = CAN_DATA(param[0] & 0xFF,  // parameter address, little-endian
                                 param[0] >> 8,
                                 1,                // 1 = write, 0 = read

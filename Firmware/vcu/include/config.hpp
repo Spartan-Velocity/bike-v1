@@ -26,7 +26,13 @@ constexpr uint32_t MSGID_RT_FAULTS = WHEEL_CONTROLLER_CANID + 0x0Bu;
 constexpr uint32_t MSGID_TX_PARAM = WHEEL_CONTROLLER_CANID + 0x21u;
 constexpr uint32_t MSGID_RX_PARAM = WHEEL_CONTROLLER_CANID + 0x22u;
 
-constexpr uint16_t PARAMS[][2] = {};
+constexpr uint16_t PARAMS[][2] = {
+  {0x0064, 200},
+  {0x0065, 200},
+  {0x00AD, 2},
+  {0x0080, 20},
+  {0x006F, 20}
+};
 
 constexpr uint16_t PARAM_RX_TIMEOUT = 1000;
 
