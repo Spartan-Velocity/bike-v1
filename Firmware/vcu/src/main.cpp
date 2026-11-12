@@ -1,7 +1,7 @@
 #include <Arduino.h>
 
-#include "displayController.hpp"
 #include "canController.hpp"
+#include "displayController.hpp"
 #include "elapsedMillis.h"
 #include "motorController.hpp"
 
