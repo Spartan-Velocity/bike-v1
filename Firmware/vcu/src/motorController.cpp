@@ -4,7 +4,7 @@
 #include <elapsedMillis.h>
 
 #include "canController.hpp"
-#include "config.hpp"
+#include "confi  g.hpp"
 
 void MotorController::init() {
     Serial.println("Initalizing Motor Controller");
@@ -58,6 +58,7 @@ void MotorController::poll() {
 
 void MotorController::onStateMessage(const Message& msg) {
     bool lockoutStatus = bitRead(msg.buf[6], 7);
+
     if (lockoutStatus && !lockout) {
         enabled = false;
         lockout = true;
@@ -67,9 +68,9 @@ void MotorController::onStateMessage(const Message& msg) {
 }
 
 void MotorController::sendCommandMessage() {
-    auto on = enabled && !lockout;
-    auto torqueOut = on ? toruqe : 0;
-    auto direction = torqueOut > 0;
+    bool on = enabled && !lockout;
+    bool torqueOut = on ? toruqe : 0;
+    bool direction = torqueOut > 0;
     MessageData data = CAN_DATA(torqueOut & 0xFF, torqueOut >> 8 & 0xFF, 0, 0, direction, on, 0, 0);
     CANController::write(motorConfig::MSGID_TX_COMMAND, &data);
 }
