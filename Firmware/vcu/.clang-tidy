@@ -15,6 +15,7 @@ Checks: >
   -modernize-deprecated-headers,
   -bugprone-easily-swappable-parameters,
   -cppcoreguidelines-avoid-non-const-global-variables,
+  -bugprone-dynamic-static-initializers,
 
   -cppcoreguidelines-avoid-c-arrays,
   -modernize-avoid-c-arrays,
