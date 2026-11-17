@@ -1,6 +1,7 @@
 #pragma once
 
 #include <HardwareSerial.h>
+#include <cstdint>
 
 namespace canConfig {
 
@@ -24,6 +25,10 @@ constexpr uint32_t MSGID_RT_FAULTS = WHEEL_CONTROLLER_CANID + 0x0BU;
 constexpr uint32_t MSGID_TX_PARAM = WHEEL_CONTROLLER_CANID + 0x21U;
 constexpr uint32_t MSGID_RX_PARAM = WHEEL_CONTROLLER_CANID + 0x22U;
 
+constexpr uint32_t MSGID_RX_THROTTLE = WHEEL_CONTROLLER_CANID + 0x0003U;  // TODO: find real value
+constexpr uint32_t MSGID_RX_TEMP = WHEEL_CONTROLLER_CANID + 0x01U;
+constexpr uint32_t MSGID_RX_SPEED = WHEEL_CONTROLLER_CANID + 0x05U;
+
 constexpr uint16_t PARAMS[][2] = {};
 
 constexpr uint16_t PARAM_RX_TIMEOUT = 1000;
@@ -45,7 +50,14 @@ constexpr float PUMP_PWM_DUTYCYCLE = 14;  // Min allowed duty cycle is 13%
 namespace displayConfig {
 
 inline auto& NEXTION = Serial4;
+
 constexpr uint32_t DISPLAY_BAUD = 9600;
 constexpr uint16_t DISPLAY_TIMEOUT = 5000;
 
 }  // namespace displayConfig
+
+namespace bmsConfig {
+
+constexpr uint32_t MSGID_RX_BMS = 0x0000;  // TODO: get real value
+
+}

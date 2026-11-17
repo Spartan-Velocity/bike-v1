@@ -2,6 +2,7 @@
 
 #include <FlexCAN_T4.h>
 #include <elapsedMillis.h>
+#include <cstdint>
 
 #include "canController.hpp"
 #include "config.hpp"
@@ -41,7 +42,23 @@ void MotorController::init() {
         }
     }
 
+    CANController::requestMessages(motorConfig::MSGID_RX_THROTTLE, onThrottleMsg);
+    CANController::requestMessages(motorConfig::MSGID_RX_TEMP, onTempMsg);
+    CANController::requestMessages(motorConfig::MSGID_RX_SPEED, onSpeedMsg);
+
     Serial.println("Initalized Motor Controller");
 }
+
+void MotorController::onThrottleMsg(const Message& msg) {
+    uint16_t throttleInput = ((msg.buf[1] << 8) + msg.buf[0]) & 0x3FF;
+}  // TODO: update throttle msg
+
+void MotorController::onTempMsg(const Message& msg) {
+    uint16_t motorTemp = (msg.buf[5] << 8) + msg.buf[4];
+}  // TODO: update temp msg
+
+void MotorController::onSpeedMsg(const Message& msg) {
+    uint16_t motorSpeed = (msg.buf[3] << 8) + msg.buf[2];
+}  // TODO: update throttle msg
 
 void MotorController::poll() {}
