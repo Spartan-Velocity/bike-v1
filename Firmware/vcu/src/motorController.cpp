@@ -10,11 +10,12 @@
 void MotorController::init() {
     Serial.println("Initalizing Motor Controller");
 
-    CANController::requestMessageTemp(motorConfig::MSGID_RX_PARAM, [](const Message& msg) {
+    CANController::requestMessages(motorConfig::MSGID_RX_PARAM, [](const Message& msg) {
         if ((msg.buf[0] | (msg.buf[1] << 8)) != expectedAddr) {
             return;
         }
         paramOk = (msg.buf[2] == 1);
+        paramData = msg.buf[4] | (msg.buf[5] << 8);
         paramRecieved = true;
     });
 
@@ -39,11 +40,11 @@ void MotorController::init() {
         }
 
         if (!paramRecieved) {
-            Serial.printf("param %u write timeout\n", param[0]);
+            Serial.println("param write timeout");
         } else if (!paramOk) {
-            Serial.printf("param %u write failed\n", param[0]);
+            Serial.println("param write fail");
         } else {
-            Serial.printf("param %u write success\n", param[0]);
+            Serial.println("param write success");
         }
     }
 
@@ -56,6 +57,34 @@ void MotorController::poll() {
         sendCommandMessage();
         elapsed = 0;
     }
+}
+
+auto MotorController::getEEPROMParam(uint16_t addr) -> uint16_t {
+    // byte 2 = 0 -> read command, data bytes ignored
+    MessageData data = CAN_DATA(addr & 0xFF, addr >> 8, 0, 0, 0, 0, 0, 0);
+
+    paramRecieved = false;
+    paramOk = false;
+    paramData = 0;
+    expectedAddr = addr;
+
+    CANController::write(motorConfig::MSGID_TX_PARAM, &data);
+
+    elapsedMillis timeout{};
+    while (!paramRecieved && timeout < motorConfig::PARAM_RX_TIMEOUT) {
+        CANController::poll();
+    }
+
+    if (!paramRecieved) {
+        Serial.println("param write timeout");
+        return 0;
+    }
+    if (!paramOk) {
+        Serial.println("param write fail");
+        return 0;
+    }
+
+    return paramData;
 }
 
 void MotorController::onStateMessage(const Message& msg) {

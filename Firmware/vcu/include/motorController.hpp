@@ -1,6 +1,7 @@
 #pragma once
 
 #include <elapsedMillis.h>
+#include <cstdint>
 
 #include "canController.hpp"
 
@@ -9,10 +10,14 @@ class MotorController {
     static void init();
     static void poll();
 
+    static auto getEEPROMParam(uint16_t addr) -> uint16_t;
+
   private:
     inline static volatile bool paramRecieved{false};
     inline static volatile bool paramOk{false};
     inline static volatile uint16_t expectedAddr{};
+
+    inline static volatile uint16_t paramData{};
 
     inline static bool enabled{false};
     inline static bool lockout{true};
