@@ -25,7 +25,7 @@ void setup() {
     CANController::init();
     MotorController::init();
 
-    DisplayController::writeVal("loaded", 1);
+    DisplayController::writeVal("page0.loaded", 1);
 }
 
 void loop() {
