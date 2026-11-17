@@ -5,6 +5,7 @@
 
 #include "canController.hpp"
 #include "config.hpp"
+#include "wiring.h"
 
 void MotorController::init() {
     Serial.println("Initalizing Motor Controller");
@@ -18,6 +19,7 @@ void MotorController::init() {
     });
 
     CANController::requestMessages(motorConfig::MSGID_RT_STATES, onStateMessage);
+    CANController::requestMessages(motorConfig::MSGID_RT_FAULTS, onFaultMessage);
 
     for (const auto& param : motorConfig::PARAMS) {
         Serial.printf("param %u write value %u\n", param[0], param[1]);
@@ -63,6 +65,17 @@ void MotorController::onStateMessage(const Message& msg) {
         lockout = true;
 
         Serial.println("Motor lockout enabled");
+    }
+}
+
+void MotorController::onFaultMessage(const Message& msg) {
+    if (bitRead(msg.buf[4], 3)) {
+        enabled = false;
+
+        MessageData data = CAN_DATA(motorConfig::FAULT_CLEAR_PARAM & 0xFF,
+                                    motorConfig::FAULT_CLEAR_PARAM >> 8, 1, 0, 0, 0, 0, 0);
+
+        CANController::write(motorConfig::MSGID_TX_PARAM, &data);
     }
 }
 

@@ -24,4 +24,5 @@ class MotorController {
     static void sendCommandMessage();
 
     static void onStateMessage(const Message& msg);
+    static void onFaultMessage(const Message& msg);
 };

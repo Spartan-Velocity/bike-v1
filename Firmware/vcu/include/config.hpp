@@ -1,6 +1,7 @@
 #pragma once
 
 #include <HardwareSerial.h>
+#include <cstdint>
 
 namespace canConfig {
 
@@ -24,7 +25,9 @@ constexpr uint32_t MSGID_RT_FAULTS = WHEEL_CONTROLLER_CANID + 0x0BU;
 constexpr uint32_t MSGID_TX_PARAM = WHEEL_CONTROLLER_CANID + 0x21U;
 constexpr uint32_t MSGID_RX_PARAM = WHEEL_CONTROLLER_CANID + 0x22U;
 
-// clang-format off
+constexpr uint16_t FAULT_CLEAR_PARAM = 0x0C1;
+
+    // clang-format off
 
 constexpr uint16_t PARAMS[][2] = {
   {0x0064, 200},
