@@ -64,12 +64,7 @@ void CANController::init() {
 
     if (canConfig::canMonitorEnabled) {
         getBus().onReceive(sniffMessage);
-
-        // getBus().enableFIFO();
-        // getBus().setFIFOFilter(ACCEPT_ALL);
-        // getBus().enableFIFOInterrupt();
-
-        // usedMailboxes += canConfig::FIFO_MAILBOX_COUNT;
+        getBus().onTransmit(sniffMessage);
     }
 
     // Preserve a TX mailbox always
