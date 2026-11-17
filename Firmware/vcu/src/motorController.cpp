@@ -76,14 +76,14 @@ auto MotorController::getEEPROMParam(uint16_t addr) -> uint16_t {
     }
 
     if (!paramRecieved) {
-        Serial.println("param write timeout");
+        Serial.printf("param read %u timeout\n", addr)
         return 0;
-    }
-    if (!paramOk) {
-        Serial.println("param write fail");
+    } else if (!paramOk) {
+        Serial.printf("param read %u fail\n", addr);
         return 0;
     }
 
+    Serial.printf("param read %u success\n", addr)
     return paramData;
 }
 
