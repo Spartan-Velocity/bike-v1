@@ -4,7 +4,7 @@
 #include <elapsedMillis.h>
 
 #include "canController.hpp"
-#include "confi  g.hpp"
+#include "config.hpp"
 
 void MotorController::init() {
     Serial.println("Initalizing Motor Controller");
@@ -18,6 +18,8 @@ void MotorController::init() {
     });
 
     CANController::requestMessages(motorConfig::MSGID_RT_STATES, onStateMessage);
+    CANController::requestMessages(motorConfig::MSGID_RT_FAULTS, onFaultMessage);
+    CANController::requestMessages(motorConfig::MSGID_RT_ANALOG, onAnalogMessage);
 
     for (const auto& param : motorConfig::PARAMS) {
         Serial.printf("param %u write value %u\n", param[0], param[1]);
@@ -50,27 +52,73 @@ void MotorController::init() {
 }
 
 void MotorController::poll() {
-    if (elapsed > motorConfig::COMMAND_MSG_RATE) {
-        sendCommandMessage();
-        elapsed = 0;
+   
+    if (elapsed <= motorConfig::COMMAND_MSG_RATE) {
+        return;
     }
+    elapsed = 0;
+
+    if (lockout) {
+        
+        sendCommandMessage(0, 0, 1, 1, 0);
+
+    } else if (throttleVoltage > motorConfig::THROTTLE_THRESHOLD) {
+        throttleCmd(throttleVoltage);
+    
+    
+
+    } else {
+      
+        sendCommandMessage(0, 0, 1, 1, 0);
+    }
+
+
 }
 
 void MotorController::onStateMessage(const Message& msg) {
-    bool lockoutStatus = bitRead(msg.buf[6], 7);
+    switch (msg.buf[0]) {
+        case 6:
+            Serial.println("Motor Enabled");
+            break;
 
-    if (lockoutStatus && !lockout) {
-        enabled = false;
-        lockout = true;
+        case 4:
+            if (lockout) {
+                Serial.println("Lock Removed");
+                sendCommandMessage(0, 0, 1, 0, 0);
+                lockout = false;
+            }
+            break;
 
-        Serial.println("Motor lockout enabled");
+        case 7:
+            lockout = true;
+            break;
     }
 }
 
-void MotorController::sendCommandMessage() {
-    bool on = enabled && !lockout;
-    bool torqueOut = on ? toruqe : 0;
-    bool direction = torqueOut > 0;
-    MessageData data = CAN_DATA(torqueOut & 0xFF, torqueOut >> 8 & 0xFF, 0, 0, direction, on, 0, 0);
+void MotorController::onFaultMessage(const Message& msg) {
+    uint32_t run = msg.buf[4] | (static_cast<uint32_t>(msg.buf[5]) << 8) |
+                   (static_cast<uint32_t>(msg.buf[6]) << 16) |
+                   (static_cast<uint32_t>(msg.buf[7]) << 24);
+
+    if (run & 0x00000100) {
+        Serial.println("Hardware Gate Fault");
+    }
+    if (run & 0x40000000) {
+        Serial.println("Resolver Not Connected");
+    }
+}
+
+void MotorController::throttleCmd(const uint16_t voltage) {
+    sendCommandMessage(motorConfig::TEST_TORQUE, 0, 1, 2, (1.5*motorConfig::TEST_TORQUE));
+}
+
+void MotorController::onAnalogMessage(const Message& msg) {
+    throttleVoltage = msg.buf[0] | ((msg.buf[1] & 0x03) << 8);
+
+}
+
+
+void MotorController::sendCommandMessage(uint8_t torque, uint8_t speed, uint8_t direction, uint8_t flags, uint8_t torqueLimit) {
+    MessageData data = CAN_DATA(torque, 0, speed, 0, direction, flags, torqueLimit, 0);
     CANController::write(motorConfig::MSGID_TX_COMMAND, &data);
 }
