@@ -4,14 +4,14 @@ All firmware work for this project can be done without leaving Obsidian. The vau
 
 ## Plugins doing the work (all already installed)
 
-| Plugin | Role |
-| --- | --- |
-| **Terminal** | Integrated terminal + one-click PlatformIO profiles (below) |
-| **open-vscode** / **vscode-editor** | Open a file/folder in VS Code, or edit code inline |
-| **code-runner** | Run snippets (host-side scratch work) |
-| **obsidian-git** | Stage / commit / push without a shell |
-| **mermaid-view**, **excalidraw**, **tikzjax** | Wiring diagrams, schematics, timing sketches |
-| **xlsx-viewer**, **csv-lite** | BOMs and logs (e.g. Orion BMS CSVs) |
+| Plugin                                        | Role                                                        |
+| --------------------------------------------- | ----------------------------------------------------------- |
+| **Terminal**                                  | Integrated terminal + one-click PlatformIO profiles (below) |
+| **open-vscode** / **vscode-editor**           | Open a file/folder in VS Code, or edit code inline          |
+| **code-runner**                               | Run snippets (host-side scratch work)                       |
+| **obsidian-git**                              | Stage / commit / push without a shell                       |
+| **mermaid-view**, **excalidraw**, **tikzjax** | Wiring diagrams, schematics, timing sketches                |
+| **xlsx-viewer**, **csv-lite**                 | BOMs and logs (e.g. Orion BMS CSVs)                         |
 
 ## One-click PlatformIO commands
 
@@ -40,6 +40,9 @@ e.g. `Ctrl-Shift-B` for Build, `Ctrl-Shift-U` for Upload, `Ctrl-Shift-M` for Mon
 
 ## Notes
 - The config lives in `.obsidian/plugins/terminal/data.json` (backup: `data.json.bak`).
+- **NixOS:** there is no `/bin/bash`; the shell is `/run/current-system/sw/bin/bash`.
+  All profiles (and the plugin's default integrated profile) use that path — if
+  a system rebuild changes it, update `executable` in each profile.
 - If `pio` isn't found, the login shell isn't sourcing the Nix profile — the
   profiles use `bash -lc` so `~/.nix-profile/bin` is on PATH; adjust if your
   shell init differs.
