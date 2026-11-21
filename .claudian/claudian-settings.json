@@ -49,20 +49,6 @@
       "sessionEnvironmentHash": "",
       "selectedModels": [
         {
-          "value": "default",
-          "label": "Default (recommended)",
-          "description": "Opus 4.8 · Best for everyday, complex tasks",
-          "resolvedModel": "claude-opus-4-8",
-          "reasoningMetadataResolved": true,
-          "supportedEffortLevels": [
-            "low",
-            "medium",
-            "high",
-            "xhigh",
-            "max"
-          ]
-        },
-        {
           "value": "opus",
           "label": "Opus 5.5",
           "description": "For complex work and everyday tasks",

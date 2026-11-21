@@ -35,28 +35,28 @@ constexpr uint32_t MSGID_RX_PARAM = WHEEL_CONTROLLER_CANID + 0x22U;     // 0x0C2
 // }
 
 constexpr uint16_t PARAMS[][2] = {
-  {0x0064, 200}, //Iq axis Current Limit x10
-  {0x0065, 200}, //Id axis Current Limit x10
-  {0x0066, 4000}, //HVDC Limit x10
-  {0x0068, 1000}, //HVDC Undervolt x10
+    {0x0064, 200}, //Iq axis Current Limit x10
+    {0x0065, 200}, //Id axis Current Limit x10
+    {0x0066, 4000}, //HVDC Limit x10
+    {0x0068, 900}, //HVDC Undervolt x10
 
-  {0x00AD, 2}, // Dischrge Enable
-  {0x006F, 100}, // Motor_Overspeed RPM
-  {0x0080, 100}, // Maxspeed RPM
+    {0x00AD, 2}, // Dischrge Enable
+    {0x006F, 50}, // Motor_Overspeed RPM
+    {0x0080, 50}, // Maxspeed RPM
 
-  {0x0081, 500}, // Motor torque_limit N*m x10
-  {0x008C, 0}, // Precharge Bypassed (0 NO OR 1 YES)
-  {0x008E, 0}, // Run_mode (Torque 0 OR Speed 1)
-  {0x008F, 0}, // Inv_cmd_mode (CAN 0 OR VSM 1)
+    {0x0081, 120}, // Motor torque_limit N*m x10
+    {0x008C, 1}, // Precharge Bypassed (0 NO OR 1 YES)
+    {0x008E, 0}, // Run_mode (Torque 0 OR Speed 1)
+    {0x008F, 0}, // Inv_cmd_mode (CAN 0 OR VSM 1)
 
-  {0x0070, 500}, // Inverter Overtemp x10
-  {0x000C, 29}, // Gamma Adjust x10
+    {0x0070, 500}, // Inverter Overtemp x10
+    {0x0098, 629}, // Gamma Adjust x10
 
-  {0x00F1, 12}, //PWM Nominal Freq kHz
-  {0x00F6, 12}, // PWM minimum variable Freq kHz
-  {0x00F7, 12}, // PWM Max variable Freq kHz
+    {0x00F1, 12}, //PWM Nominal Freq kHz
+    {0x00F6, 12}, // PWM minimum variable Freq kHz
+    {0x00F7, 12}, // PWM Max variable Freq kHz
+  };
 
-};
 
 // clang-format on
 
