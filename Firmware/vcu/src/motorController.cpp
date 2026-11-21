@@ -149,7 +149,7 @@ void poll() {
 
 }
 
-void onStateMessage(const Message& msg) {
+void onStateMessage(const  mMessage& msg) {
 
     switch (msg.id) {
     case 0xA3:
