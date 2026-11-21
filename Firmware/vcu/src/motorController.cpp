@@ -61,24 +61,25 @@ static void motor_poll() {
     // motor.elapsed = 0;
 
    // if (motor.lockout) motor_send_command(0, 0, 1, 1, 0);
-    if (motor.thrvoltage > motorConfig::THROTTLE_THRESHOLD) motor_throttle_cmd();
-    else motor_send_command(0, 0, 1, 3, 0);
+    // if (motor.thrvoltage > motorConfig::THROTTLE_THRESHOLD) motor_throttle_cmd();
+    // else motor_send_command(0, 0, 1, 3, 0);
 
-     if (motor.elapsed >= 10) {
-      switch (motor.vsmState) {
+    switch (motor.vsmState) {
         case 4: {
-          motor_send_command(0, 0, 1, 3, 0);
-          motor_throttle_cmd();
+            motor_send_command(0, 0, 1, 3, 0);
+            motor_throttle_cmd();
         } break;
+
         case 6:
-          Serial.printf("Drive Enabled");
-          //drive();
+            Serial.printf("Drive Enabled");
+            //drive();
         break;
+
         case 7: {
-          MessageData data = CAN_DATA(0x14, 0x00, 1, 0, 0, 0, 0, 0);
-          CANController::write(motorConfig::MSGID_TX_PARAM, &data);
+            MessageData data = CAN_DATA(0x14, 0x00, 1, 0, 0, 0, 0, 0);
+            CANController::write(motorConfig::MSGID_TX_PARAM, &data);
         } break; 
-      }
+    
     }
 }
 
