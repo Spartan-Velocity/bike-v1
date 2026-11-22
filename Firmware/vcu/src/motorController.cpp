@@ -6,71 +6,75 @@
 #include "canController.hpp"
 #include "config.hpp"
 
-static void motor_init() {
+void MotorController::init() {
     Serial.println("Initalizing Motor Controller");
 
     CANController::requestMessageTemp(motorConfig::MSGID_RX_PARAM, [](const Message& msg) {
-        if ((msg.buf[0] | (msg.buf[1] << 8)) != motor.expectedAddr) {
+        if ((msg.buf[0] | (msg.buf[1] << 8)) != expectedAddr) {
             return;
         }
-        motor.paramOk = (msg.buf[2] == 1);
-        motor.paramRecieved = true;
+        paramOk = (msg.buf[2] == 1);
+        paramRecieved = true;
     });
 
-    CANController::requestMessages(motorConfig::MSGID_RT_STATES, motor.on_state);
-    CANController::requestMessages(motorConfig::MSGID_RT_FAULTS, motor.on_fault);
+    CANController::requestMessages(motorConfig::MSGID_RT_STATES, on_state);
+    CANController::requestMessages(motorConfig::MSGID_RT_FAULTS, on_fault);
 
     for (const auto& param : motorConfig::PARAMS) {
         MessageData data =
             CAN_DATA(param[0] & 0xFF, param[0] >> 8, 1, 0, param[1] & 0xFF, param[1] >> 8, 0, 0);
 
-        // motor.paramRecieved = false;
-        // motor.paramOk = false;
-        // motor.expectedAddr = param[0];
+        paramRecieved = false;
+        paramOk = false;
+        expectedAddr = param[0];
         CANController::write(motorConfig::MSGID_TX_PARAM, &data);
 
         elapsedMillis timeout{};
-        // while (!motor.paramRecieved && timeout < motorConfig::PARAM_RX_TIMEOUT)
-        // CANController::poll();
+        while (!paramRecieved && timeout < motorConfig::PARAM_RX_TIMEOUT) {
+            CANController::poll();
+        }
 
-        // if (!motor.paramRecieved)   Serial.printf("param %u timeout\n", param[0]);
-        // else if (!motor.paramOk)    Serial.printf("param %u failed\n", param[0]);
+        if (!paramRecieved) {
+            Serial.printf("param %u timeout\n", param[0]);
+        } else if (!paramOk) {
+            Serial.printf("param %u failed\n", param[0]);
+        }
         // else                        Serial.printf("param %u ok\n", param[0]);
     }
 
-    motor.elapsed = 0;
+    elapsed = 0;
     Serial.println("Initalized Motor Controller");
 }
 
-static void motor_send_command(uint8_t torque, uint8_t speed, uint8_t direction, uint8_t flags,
-                               uint8_t torqueLimit) {
+void MotorController::send_command(uint8_t torque, uint8_t speed, uint8_t direction, uint8_t flags,
+                                   uint8_t torqueLimit) {
     MessageData data = CAN_DATA(torque, 0, speed, 0, direction, flags, torqueLimit, 0);
     CANController::write(motorConfig::MSGID_TX_COMMAND, &data);
 }
 
-static void motor_throttle_cmd() {
-    int32_t P = (motorConfig::TEST_TORQUE * motor.veh_speed) / 9550;
+void MotorController::throttle_cmd() {
+    int32_t P = (motorConfig::TEST_TORQUE * veh_speed) / 9550;
     uint32_t current = (P / 212) * 10;
-    Serial.println(motor.thrvoltage);
-    if (current >= motor.iqCurrent || current >= motor.idCurrent) {
-        motor.torque = 90;
+    Serial.println(thrvoltage);
+    if (current >= iqCurrent || current >= idCurrent) {
+        torque = 90;
     }
 
-    motor_send_command(motorConfig::TEST_TORQUE, 0, 1, 2, 1.5 * motorConfig::TEST_TORQUE);
+    send_command(motorConfig::TEST_TORQUE, 0, 1, 2, 1.5 * motorConfig::TEST_TORQUE);
 }
 
-static void motor_poll() {
-    // if (motor.elapsed <= motorConfig::COMMAND_MSG_RATE) return;
-    // motor.elapsed = 0;
+void MotorController::poll() {
+    // if (elapsed <= motorConfig::COMMAND_MSG_RATE) return;
+    // elapsed = 0;
 
-    // if (motor.lockout) motor_send_command(0, 0, 1, 1, 0);
-    // if (motor.thrvoltage > motorConfig::THROTTLE_THRESHOLD) motor_throttle_cmd();
+    // if (lockout) motor_send_command(0, 0, 1, 1, 0);
+    // if (thrvoltage > motorConfig::THROTTLE_THRESHOLD) motor_throttle_cmd();
     // else motor_send_command(0, 0, 1, 3, 0);
 
-    switch (motor.vsmState) {
+    switch (vsmState) {
         case 4: {
-            motor_send_command(0, 0, 1, 3, 0);
-            motor_throttle_cmd();
+            send_command(0, 0, 1, 3, 0);
+            throttle_cmd();
         } break;
 
         case 6:
@@ -85,20 +89,20 @@ static void motor_poll() {
     }
 }
 
-static void motor_on_state(const Message& msg) {
+void MotorController::on_state(const Message& msg) {
     switch (msg.id) {
         case 0xA3:
-            motor.thrvoltage = msg.buf[0] | ((msg.buf[1] & 0x03) << 8);
+            thrvoltage = msg.buf[0] | ((msg.buf[1] & 0x03) << 8);
             break;
         case 0xAA:
-            motor.vsmState = msg.buf[0];
+            vsmState = msg.buf[0];
             break;
         case 0xAC:
-            motor.current_torque = msg.buf[0];
+            current_torque = msg.buf[0];
             break;
         case 0xAB:
-            motor.runFault = msg.buf[4] | ((uint32_t)msg.buf[5] << 8) |
-                             ((uint32_t)msg.buf[6] << 16) | ((uint32_t)msg.buf[7] << 24);
+            runFault = msg.buf[4] | ((uint32_t)msg.buf[5] << 8) | ((uint32_t)msg.buf[6] << 16) |
+                       ((uint32_t)msg.buf[7] << 24);
             break;
 
         case 0xC2: {
@@ -110,39 +114,29 @@ static void motor_on_state(const Message& msg) {
     }
 }
 
-static void motor_on_fault(const Message& msg) {
-    if (!motor.runFault) {
+void MotorController::on_fault(const Message& msg) {
+    if (!runFault) {
         return;
     }
-    if (motor.runFault & 0x00000400) {
+    if (runFault & 0x00000400) {
         Serial.println("Under Voltage Error");
     }
-    if (motor.runFault & 0x00000100) {
+    if (runFault & 0x00000100) {
         Serial.println("Hardware Gate Fault");
-        motor.vsmState = 7;
-        motor.lockout = true;
+        vsmState = 7;
+        lockout = true;
     }
 
-    if (motor.runFault & 0x40000000) {
+    if (runFault & 0x40000000) {
         Serial.println("Resolver Not Connected");
     }
-    if (motor.runFault & 0x00000002) {
+    if (runFault & 0x00000002) {
         Serial.println("Over-Current Fault");
     }
-    if (motor.runFault & 0x00000800) {
+    if (runFault & 0x00000800) {
         Serial.println("CAN Command Message Lost");
     }
-    if (motor.runFault & 0x00000020) {
+    if (runFault & 0x00000020) {
         Serial.println("Accelerator Input Open");
     }
 }
-
-// The one motor instance: state defaults come from the struct, ops wired here.
-MotorDriver motor = {
-    .init = motor_init,
-    .poll = motor_poll,
-    .on_state = motor_on_state,
-    .on_fault = motor_on_fault,
-    .send_command = motor_send_command,
-    .throttle_cmd = motor_throttle_cmd,
-};
