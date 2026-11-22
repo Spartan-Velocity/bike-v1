@@ -2,5 +2,6 @@
 .vscode/
 .cache/
 .obsidian/
+.claudian/
 
 compile_commands.json
