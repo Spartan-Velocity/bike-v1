@@ -15,7 +15,7 @@ using Message = CAN_message_t;
 using MessageHandler = _MB_ptr;
 using MessageData = uint8_t[8];
 
-class CANController {
+struct CANController {
   public:
     static void requestMessages(uint32_t id, MessageHandler handler);
     static void requestMessageTemp(uint32_t id, MessageHandler handler);

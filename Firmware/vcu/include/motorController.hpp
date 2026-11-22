@@ -30,6 +30,7 @@ struct MotorDriver {
 
   elapsedMillis elapsed;
 
+
   void (*init)()                   = nullptr;
   void (*poll)()                   = nullptr;
   void (*on_state)(const Message& msg) = nullptr;
@@ -38,6 +39,7 @@ struct MotorDriver {
   void (*send_command)(uint8_t torque, uint8_t speed, uint8_t direction,
                        uint8_t flags, uint8_t torqueLimit) = nullptr;
   void (*throttle_cmd)()           = nullptr;
+  
 };
 
 // The single motor instance, defined (and wired up) in motorController.cpp.
