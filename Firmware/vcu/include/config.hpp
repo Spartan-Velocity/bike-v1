@@ -21,7 +21,8 @@ constexpr uint32_t MSGID_TX_COMMAND = WHEEL_CONTROLLER_CANID + 0x20U;  // 0x0C0 
 constexpr uint32_t MSGID_RT_ANALOG = WHEEL_CONTROLLER_CANID + 0x03U;   // 0x0A3 throttle input
 constexpr uint32_t MSGID_RT_STATES = WHEEL_CONTROLLER_CANID + 0x0AU;   // 0x0AA VSM states
 constexpr uint32_t MSGID_RT_FAULTS = WHEEL_CONTROLLER_CANID + 0x0BU;   // 0x0AB fault codes
-constexpr uint32_t MSGID_RT_TORQUE = WHEEL_CONTROLLER_CANID + 0x0CU;   // 0x0AC torque feedback
+constexpr uint32_t MSGID_RT_THROTTLE = WHEEL_CONTROLLER_CANID + 0x03U;   // 0x0AB fault codes
+constexpr uint32_t MSGID_RT_TORQUE = WHEEL_CONTROLLER_CANID + 0x0CU;  // 0x0AC torque feedback
 
 constexpr uint32_t MSGID_TX_PARAM = WHEEL_CONTROLLER_CANID + 0x21U;  // 0x0C1 param request
 constexpr uint32_t MSGID_RX_PARAM = WHEEL_CONTROLLER_CANID + 0x22U;  // 0x0C2 param response

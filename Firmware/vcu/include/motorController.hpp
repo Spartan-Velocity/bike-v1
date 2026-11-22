@@ -24,6 +24,9 @@ class MotorController {
 
     static void onState(const Message& msg);
     static void onFault(const Message& msg);
+    static void onThrottle(const Message& msg);
+    static void onTorque(const Message& msg);
+
     static void sendCommand(uint8_t torque, uint8_t speed, uint8_t direction, uint8_t flags,
                             uint8_t torqueLimit);
     static void throttleCmd();
