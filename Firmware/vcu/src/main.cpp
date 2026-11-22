@@ -23,12 +23,12 @@ void setup() {
     initSerial();
 
     CANController::init();
-    MotorController::init();
+    motor.init();
 
     DisplayController::writeVal("loaded", 1);
 }
 
 void loop() {
     CANController::poll();
-    MotorController::poll();
+    motor.poll();
 }

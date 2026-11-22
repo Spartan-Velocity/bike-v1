@@ -10,12 +10,12 @@ auto CANController::getBus() -> FlexCAN_T4<CAN1, RX_SIZE_256, TX_SIZE_16>& {
 };
 
 void CANController::sniffMessage(const Message& msg) {
-    Serial.printf("%10lu %c %03lX [%u]", micros(), msg.flags.extended ? 'X' : 'S',
-                  static_cast<uint32_t>(msg.id), msg.len);
-    for (uint8_t i = 0; i < msg.len; i++) {
-        Serial.printf(" %02X", msg.buf[i]);
-    }
-    Serial.println();
+    // Serial.printf("%10lu %c %03lX [%u]", micros(), msg.flags.extended ? 'X' : 'S',
+    //               static_cast<uint32_t>(msg.id), msg.len);
+    // for (uint8_t i = 0; i < msg.len; i++) {
+    //     Serial.printf(" %02X", msg.buf[i]);
+    // }
+    // Serial.println();
 }
 
 void CANController::requestMessages(uint32_t id, _MB_ptr handler) {
