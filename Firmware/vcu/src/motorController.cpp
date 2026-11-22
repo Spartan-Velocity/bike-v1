@@ -3,6 +3,7 @@
 #include <FlexCAN_T4.h>
 #include <elapsedMillis.h>
 #include <stdint.h>
+#include <math.h>
 
 #include "canController.hpp"
 #include "config.hpp"
@@ -60,17 +61,19 @@ void MotorController::sendCommand(uint8_t torque, uint8_t speed, uint8_t directi
     CANController::write(motorConfig::MSGID_TX_COMMAND, &data);
 }
 
-void MotorController::throttleCmd() {
-    int32_t P = (motorConfig::TEST_TORQUE * veh_speed) / 9550;
-    uint32_t current = (P / 212) * 10;
-    Serial.println(thrvoltage);
 
-    if (current >= iqCurrent || current >= idCurrent) {
+void MotorController::torqueCmd() {
+    const int8_t poles = 20;
+    
+    uint16_t current = (3*poles) / (4*torque*flux);
+    if (current >= (sqrt((iqCurrent * iqCurrent) + (idCurrent * idCurrent))) / 10) {
         torque = 90;
     }
 
+    Serial.println(thrvoltage);
     sendCommand(motorConfig::TEST_TORQUE, 0, 1, 2, 1.5 * motorConfig::TEST_TORQUE);
 }
+
 
 void MotorController::poll() {
     // if (elapsed <= motorConfig::COMMAND_MSG_RATE) return;
@@ -83,7 +86,7 @@ void MotorController::poll() {
     switch (vsmState) {
         case 4: {
             sendCommand(0, 0, 1, 3, 0);
-            throttleCmd();
+            torqueCmd();
         } break;
 
         case 6: {
@@ -99,6 +102,8 @@ void MotorController::poll() {
         default:
             break;
     }
+
+
 }
 
 void MotorController::onThrottle(const Message& msg) {
@@ -116,6 +121,7 @@ void MotorController::onState(const Message& msg) {
 void MotorController::onFault(const Message& msg) {
     runFault = readU32LE(&msg.buf[4]);
 
+    
     if (!runFault) {
         return;
     }
@@ -140,4 +146,6 @@ void MotorController::onFault(const Message& msg) {
     if (runFault & 0x00000020) {
         Serial.println("Accelerator Input Open");
     }
+
+
 }

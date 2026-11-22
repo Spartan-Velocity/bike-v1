@@ -14,13 +14,14 @@ class MotorController {
     volatile static inline uint32_t runFault = 0;       // 0x0AB run fault word
     volatile static inline bool lockout = true;
     volatile static inline int32_t veh_speed = 0;
+    volatile static inline int16_t flux = 0;
 
     static inline uint32_t torque = 90;
     const static inline uint8_t iqCurrent = 200;
     const static inline uint8_t idCurrent = 200;
     volatile bool direction = 1;
 
-    static elapsedMillis elapsed;
+    static inline elapsedMillis elapsed{};
 
     static void onState(const Message& msg);
     static void onFault(const Message& msg);
@@ -29,11 +30,14 @@ class MotorController {
 
     static void sendCommand(uint8_t torque, uint8_t speed, uint8_t direction, uint8_t flags,
                             uint8_t torqueLimit);
-    static void throttleCmd();
+    static void torqueCmd();
+   
+    
 
   public:
     static void init();
     static void poll();
+
 };
 
 // The single motor instance, defined (and wired up) in motorController.cpp.
