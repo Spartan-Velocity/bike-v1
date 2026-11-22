@@ -11,7 +11,7 @@
 void MotorController::init() {
     Serial.println("Initalizing Motor Controller");
 
-    CANController::requestMessages(motorConfig::MSGID_RX_PARAM, [](const Message& msg) {
+    CANController::requestMessages(motorConfig::MSGID_RX_PARAM, [](const Message& msg) -> void {
         uint16_t addr = readU16LE(&msg.buf[0]);
         uint32_t val = readU32LE(&msg.buf[4]);
         Serial.printf("Param 0x%04X = %lu\n", addr, val);
@@ -23,11 +23,14 @@ void MotorController::init() {
         paramRecieved = true;
     });
 
-    CANController::requestMessages(motorConfig::MSGID_RT_STATES, onState);
     CANController::requestMessages(motorConfig::MSGID_RT_FAULTS, onFault);
-    CANController::requestMessages(motorConfig::MSGID_RT_THROTTLE, onThrottle);
-    CANController::requestMessages(motorConfig::MSGID_RT_TORQUE, onTorque);
-    CANController::requestMessages(motorConfig::MSGID_RT_TORQUE, onTorque);
+    CANController::requestMessages(motorConfig::MSGID_RT_STATES,
+                                   [](const Message& msg) -> void { vsmState = msg.buf[0]; });
+    CANController::requestMessages(motorConfig::MSGID_RT_THROTTLE, [](const Message& msg) -> void {
+        thrvoltage = readU16LE(&msg.buf[0]) & 0x3FF;
+    });
+    CANController::requestMessages(motorConfig::MSGID_RT_TORQUE,
+                                   [](const Message& msg) -> void { current_torque = msg.buf[0]; });
 
     for (const auto& param : motorConfig::PARAMS) {
         MessageData data =
@@ -103,18 +106,6 @@ void MotorController::poll() {
         default:
             break;
     }
-}
-
-void MotorController::onThrottle(const Message& msg) {
-    thrvoltage = readU16LE(&msg.buf[0]) & 0x3FF;
-}
-
-void MotorController::onTorque(const Message& msg) {
-    current_torque = msg.buf[0];
-}
-
-void MotorController::onState(const Message& msg) {
-    vsmState = msg.buf[0];
 }
 
 void MotorController::onFault(const Message& msg) {
