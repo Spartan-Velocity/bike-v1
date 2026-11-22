@@ -91,3 +91,12 @@ constexpr uint32_t DISPLAY_BAUD = 9600;
 constexpr uint16_t DISPLAY_TIMEOUT = 5000;
 
 }  // namespace displayConfig
+
+static inline auto readU16LE(const uint8_t* p) -> uint16_t {
+    return static_cast<uint16_t>(p[0] | (p[1] << 8));
+}
+
+static inline auto readU32LE(const uint8_t* p) -> uint32_t {
+    return static_cast<uint32_t>(p[0]) | (static_cast<uint32_t>(p[1]) << 8) |
+           (static_cast<uint32_t>(p[2]) << 16) | (static_cast<uint32_t>(p[3]) << 24);
+}

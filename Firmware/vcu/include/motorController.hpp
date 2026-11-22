@@ -22,11 +22,11 @@ class MotorController {
 
     static elapsedMillis elapsed;
 
-    static void on_state(const Message& msg);
-    static void on_fault(const Message& msg);
-    static void send_command(uint8_t torque, uint8_t speed, uint8_t direction, uint8_t flags,
-                             uint8_t torqueLimit);
-    static void throttle_cmd();
+    static void onState(const Message& msg);
+    static void onFault(const Message& msg);
+    static void sendCommand(uint8_t torque, uint8_t speed, uint8_t direction, uint8_t flags,
+                            uint8_t torqueLimit);
+    static void throttleCmd();
 
   public:
     static void init();

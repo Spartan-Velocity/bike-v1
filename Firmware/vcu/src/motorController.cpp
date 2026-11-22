@@ -2,6 +2,7 @@
 
 #include <FlexCAN_T4.h>
 #include <elapsedMillis.h>
+#include <stdint.h>
 
 #include "canController.hpp"
 #include "config.hpp"
@@ -17,8 +18,8 @@ void MotorController::init() {
         paramRecieved = true;
     });
 
-    CANController::requestMessages(motorConfig::MSGID_RT_STATES, on_state);
-    CANController::requestMessages(motorConfig::MSGID_RT_FAULTS, on_fault);
+    CANController::requestMessages(motorConfig::MSGID_RT_STATES, onState);
+    CANController::requestMessages(motorConfig::MSGID_RT_FAULTS, onFault);
 
     for (const auto& param : motorConfig::PARAMS) {
         MessageData data =
@@ -46,21 +47,22 @@ void MotorController::init() {
     Serial.println("Initalized Motor Controller");
 }
 
-void MotorController::send_command(uint8_t torque, uint8_t speed, uint8_t direction, uint8_t flags,
-                                   uint8_t torqueLimit) {
+void MotorController::sendCommand(uint8_t torque, uint8_t speed, uint8_t direction, uint8_t flags,
+                                  uint8_t torqueLimit) {
     MessageData data = CAN_DATA(torque, 0, speed, 0, direction, flags, torqueLimit, 0);
     CANController::write(motorConfig::MSGID_TX_COMMAND, &data);
 }
 
-void MotorController::throttle_cmd() {
+void MotorController::throttleCmd() {
     int32_t P = (motorConfig::TEST_TORQUE * veh_speed) / 9550;
     uint32_t current = (P / 212) * 10;
     Serial.println(thrvoltage);
+
     if (current >= iqCurrent || current >= idCurrent) {
         torque = 90;
     }
 
-    send_command(motorConfig::TEST_TORQUE, 0, 1, 2, 1.5 * motorConfig::TEST_TORQUE);
+    sendCommand(motorConfig::TEST_TORQUE, 0, 1, 2, 1.5 * motorConfig::TEST_TORQUE);
 }
 
 void MotorController::poll() {
@@ -73,48 +75,50 @@ void MotorController::poll() {
 
     switch (vsmState) {
         case 4: {
-            send_command(0, 0, 1, 3, 0);
-            throttle_cmd();
+            sendCommand(0, 0, 1, 3, 0);
+            throttleCmd();
         } break;
 
-        case 6:
+        case 6: {
             Serial.printf("Drive Enabled");
             // drive();
-            break;
+        } break;
 
         case 7: {
             MessageData data = CAN_DATA(0x14, 0x00, 1, 0, 0, 0, 0, 0);
             CANController::write(motorConfig::MSGID_TX_PARAM, &data);
         } break;
+
+        default:
+            break;
     }
 }
 
-void MotorController::on_state(const Message& msg) {
+void MotorController::onState(const Message& msg) {
+    vsmState = msg.buf[0];
+
     switch (msg.id) {
         case 0xA3:
             thrvoltage = msg.buf[0] | ((msg.buf[1] & 0x03) << 8);
             break;
-        case 0xAA:
-            vsmState = msg.buf[0];
-            break;
         case 0xAC:
             current_torque = msg.buf[0];
             break;
-        case 0xAB:
-            runFault = msg.buf[4] | ((uint32_t)msg.buf[5] << 8) | ((uint32_t)msg.buf[6] << 16) |
-                       ((uint32_t)msg.buf[7] << 24);
-            break;
 
         case 0xC2: {
-            uint16_t addr = msg.buf[0] | (msg.buf[1] << 8);
-            uint32_t val = msg.buf[4] | ((uint32_t)msg.buf[5] << 8) | ((uint32_t)msg.buf[6] << 16) |
-                           ((uint32_t)msg.buf[7] << 24);
-            Serial.printf("Param 0x%04X = %lu\n", addr, (unsigned long)val);
+            uint16_t addr = readU16LE(&msg.buf[0]);
+            uint32_t val = readU32LE(&msg.buf[4]);
+            Serial.printf("Param 0x%04X = %lu\n", addr, val);
         } break;
+
+        default:
+            break;
     }
 }
 
-void MotorController::on_fault(const Message& msg) {
+void MotorController::onFault(const Message& msg) {
+    runFault = readU32LE(&msg.buf[4]);
+
     if (!runFault) {
         return;
     }
