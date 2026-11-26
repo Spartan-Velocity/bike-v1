@@ -1,0 +1,124 @@
+#!/usr/bin/env bash
+#
+# Commit and sync the lab-files vault.
+#
+# The vault lives on a CIFS mount of the nixos lab server, reached over a
+# Tailscale link that currently relays through DERP (~25 ms, ~1 MB/s). That
+# link drops. Most of this script is about the drop.
+#
+# Usage:  vault-sync [-n] [-f] [message]
+#           -n   dry run: show what would happen, change nothing
+#           -f   allow a commit that deletes more than MAX_DELETIONS files
+#
+set -euo pipefail
+
+VAULT="${VAULT_ROOT:-/mnt/lab-files/vault-mm}"
+MAX_DELETIONS=20
+LOCKFILE="/run/user/$(id -u)/vault-sync.lock"   # local disk, never on the mount
+
+DRY=0; FORCE=0
+while [[ "${1:-}" == -* ]]; do
+  case "$1" in
+    -n) DRY=1 ;;
+    -f) FORCE=1 ;;
+    *)  echo "unknown flag: $1" >&2; exit 2 ;;
+  esac
+  shift
+done
+MSG="${*:-}"
+
+die() { printf '\033[31mvault-sync: %s\033[0m\n' "$*" >&2; exit 1; }
+say() { printf '\033[36m==>\033[0m %s\n' "$*"; }
+
+# --- one at a time ----------------------------------------------------------
+# The Obsidian Git plugin commits too. Two writers racing for index.lock over a
+# 25 ms link corrupts things. The lock lives on local disk so it still works
+# when the mount is the thing that is broken.
+exec 9>"$LOCKFILE"
+flock -n 9 || die "another vault-sync is running"
+
+# --- the mount must be live, not just present -------------------------------
+# Without this, a failed automount leaves an empty directory, 'git add -A'
+# stages the deletion of the entire vault, and the push makes it permanent.
+# The vault lives INSIDE the CIFS mount, not at the mountpoint. Check the mount
+# itself, explicitly: a failed automount leaves an empty directory behind, and
+# "git add -A" against that would stage the deletion of the whole vault.
+VAULT_MOUNT="${VAULT_MOUNT:-/mnt/lab-files}"
+
+mountpoint -q "$VAULT_MOUNT" \
+  || die "$VAULT_MOUNT is not mounted. Is the share up?
+     findmnt $VAULT_MOUNT   &&   tailscale status"
+
+[[ -d "$VAULT" ]] \
+  || die "$VAULT does not exist, though $VAULT_MOUNT is mounted. Wrong path, or a bad mount."
+
+# A stale mount still reports as mounted, so prove it answers.
+timeout 15 ls "$VAULT" >/dev/null 2>&1 \
+  || die "$VAULT is not responding (stale handle).  sudo umount -l $VAULT_MOUNT  then retry"
+
+[[ -d "$VAULT/.git" ]] || die "$VAULT/.git is missing -- refusing to touch this"
+
+cd "$VAULT"
+git rev-parse --git-dir >/dev/null 2>&1 || die "$VAULT is not a git repository"
+
+# --- wreckage left by a previous disconnect ---------------------------------
+if [[ -d .git/rebase-merge || -d .git/rebase-apply ]]; then
+  die "a rebase is already in progress. Finish it by hand:
+       cd $VAULT && git status
+       git rebase --continue   (or: git rebase --abort)"
+fi
+
+if [[ -f .git/index.lock ]]; then
+  if pgrep -x git >/dev/null; then
+    die "index.lock exists and git is running. Wait, then retry."
+  fi
+  say "removing stale index.lock left by an interrupted run"
+  (( DRY )) || rm -f .git/index.lock
+fi
+
+# --- anything to do? --------------------------------------------------------
+if [[ -z "$(git status --porcelain)" ]]; then
+  say "no local changes"
+else
+  say "changes:"
+  git status --short
+  (( DRY )) && { say "dry run, stopping"; exit 0; }
+
+  git add -A
+
+  # Refuse a mass deletion unless explicitly forced. This is the guard against
+  # a half-populated mount quietly wiping the vault.
+  DELS=$(git diff --cached --diff-filter=D --name-only | wc -l)
+  if (( DELS > MAX_DELETIONS && ! FORCE )); then
+    git reset >/dev/null
+    die "refusing to commit $DELS deletions (limit $MAX_DELETIONS).
+     If the mount dropped, that is the bug. If you really meant it: vault-sync -f"
+  fi
+
+  [[ -n "$MSG" ]] || MSG="vault sync $(date '+%Y-%m-%d %H:%M') from $(hostname)"
+  # 'git commit' exits nonzero with nothing staged, which would kill set -e.
+  git diff --cached --quiet || git commit -m "$MSG"
+fi
+
+(( DRY )) && { say "dry run, not touching the remote"; exit 0; }
+
+# --- remote -----------------------------------------------------------------
+git remote get-url origin >/dev/null 2>&1 || { say "no 'origin' remote, nothing to push"; exit 0; }
+
+BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+
+say "pulling (rebase)"
+if ! git pull --rebase --autostash origin "$BRANCH"; then
+  die "rebase hit a conflict. Nothing was pushed. Resolve in $VAULT:
+       git status
+       git rebase --continue   (or: git rebase --abort)"
+fi
+
+say "pushing"
+if git rev-parse --abbrev-ref '@{upstream}' >/dev/null 2>&1; then
+  git push
+else
+  git push -u origin "$BRANCH"
+fi
+
+say "done"

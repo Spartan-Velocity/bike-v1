@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+#
+# Regenerate viewable, embeddable artifacts from the KiCad project so notes can
+# reference a current schematic instead of a screenshot that rots.
+#
+# Outputs land in Hardware/exports/ and are meant to be committed:
+#   vcb-mk2.svg      schematic, transparent background so it reads in both themes
+#   vcb-mk2.pdf      schematic, for sharing and printing
+#   vcb-mk2-bom.csv  parts list, also the data source for the Bases parts table
+#   pcb/*.svg        one SVG per copper layer, plus the board outline
+#
+set -euo pipefail
+
+VAULT="${VAULT_ROOT:-/mnt/lab-files/vault-mm}"
+PROJ="${1:-$VAULT/10-Projects/Spartan-Velocity/Hardware/vcb-mk2}"
+OUT="${2:-$VAULT/10-Projects/Spartan-Velocity/Hardware/exports}"
+
+die() { printf '\033[31mkicad-export: %s\033[0m\n' "$*" >&2; exit 1; }
+say() { printf '\033[36m==>\033[0m %s\n' "$*"; }
+
+command -v kicad-cli >/dev/null || die "kicad-cli not found"
+[[ -d "$PROJ" ]] || die "project directory not found: $PROJ"
+
+SCH="$(find "$PROJ" -maxdepth 1 -name '*.kicad_sch' | head -1)"
+PCB="$(find "$PROJ" -maxdepth 1 -name '*.kicad_pcb' | head -1)"
+[[ -n "$SCH" ]] || die "no .kicad_sch in $PROJ"
+
+NAME="$(basename "$SCH" .kicad_sch)"
+mkdir -p "$OUT" "$OUT/pcb"
+
+say "schematic -> SVG"
+kicad-cli sch export svg --output "$OUT" --no-background-color --exclude-drawing-sheet "$SCH"
+
+say "schematic -> PDF"
+kicad-cli sch export pdf --output "$OUT/$NAME.pdf" "$SCH"
+
+say "schematic -> BOM"
+kicad-cli sch export bom --output "$OUT/$NAME-bom.csv" \
+  --fields 'Reference,Value,Footprint,${QUANTITY},Datasheet' \
+  --labels 'Refs,Value,Footprint,Qty,Datasheet' \
+  --group-by Value --exclude-dnp "$SCH"
+
+if [[ -n "$PCB" ]]; then
+  say "PCB -> SVG (per layer)"
+  kicad-cli pcb export svg --output "$OUT/pcb" \
+    --layers F.Cu,B.Cu,F.Silkscreen,Edge.Cuts \
+    --mode-multi --fit-page-to-board --black-and-white --check-zones "$PCB"
+else
+  say "no .kicad_pcb found, skipping board export"
+fi
+
+say "wrote:"
+find "$OUT" -newermt '-2 minutes' -type f -printf '    %P\n' | sort

@@ -1,9 +1,10 @@
 
 This document is so you (the engineer) can quickly setup and use RMS GUI to begin flashing the CM200dx inveter.
 
-1. Download RMS GUI from this link: 
-https://www.cascadiamotion.com/documentation
-Look for RMS GUI and GTK environment download
+1. Our RMS setup will be located in the github, under this fire actually. Pull the repo and each def syms file should be accessible. 
+
+ You will need to go to this link and make sure you download GTK environment. 
+ https://www.cascadiamotion.com/documentation
 
 2. Once both softwares are downloaded you will need to connect RS-232 to the inverter then connect the USB to your PC. Once connected open RMS GUI.
 

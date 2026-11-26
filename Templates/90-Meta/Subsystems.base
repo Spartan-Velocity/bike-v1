@@ -1,0 +1,20 @@
+filters:
+  and:
+    - note.type == "subsystem"
+views:
+  - type: table
+    name: All subsystems
+    order:
+      - file.name
+      - project
+      - status
+      - updated
+  - type: table
+    name: Needs attention
+    filters:
+      and:
+        - note.status != "validated"
+    order:
+      - file.name
+      - status
+      - updated
